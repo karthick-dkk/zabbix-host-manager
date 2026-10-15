@@ -30,6 +30,8 @@ ZABBIX_URL=http://192.168.64.13:8080/zabbix ./deploy/deploy.sh
 | `HTTP_PORT` | `8090` | HTTP port. Redirects to HTTPS when TLS is on. |
 | `HTTPS_PORT` | `8443` | HTTPS port |
 | `ENABLE_TLS` | `true` | A self-signed certificate is generated on first start and kept in the `certs` volume |
+| `ZABBIX_TLS_VERIFY` | `true` | When `ZABBIX_URL` is `https://`, check the Zabbix certificate. Set it to `false` only for a self-signed Zabbix on a trusted network; a better option is to mount your CA and set `ZABBIX_CA_FILE`. |
+| `ZABBIX_CA_FILE` | system CA bundle | CA bundle used to verify Zabbix, e.g. mount `./zabbix-ca.pem:/etc/nginx/zabbix-ca.pem:ro` and set this to `/etc/nginx/zabbix-ca.pem` |
 | `ALLOW_CIDRS` | everyone | Networks allowed to use the page and the proxy, space separated, e.g. `"10.0.0.0/8 192.168.50.0/24"` |
 
 ## Using your own certificate

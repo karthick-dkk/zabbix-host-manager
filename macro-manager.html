@@ -459,14 +459,14 @@ function analyzeStructure(ix, defined /* Map tpl -> Set(base) */) {
     const sg = suggest(r.base, pool.size ? pool : allDefined);
     if (r.js) {
       push('info', 'undefined-macro', `{$${r.base}} is not defined; the JavaScript falls back to its built-in default`,
-        { where: where(r.ent), detail: `Referenced in ${r.field}. The script uses its default value because the macro is never resolved.`, macro: r.base, ent: r.ent });
+        { where: where(r.ent), detail: `Referenced in ${esc(r.field)}. The script uses its default value because the macro is never resolved.`, macro: r.base, ent: r.ent });
     } else if (sg) {
       push('err', 'wrong-mapping', `{$${r.base}} doesn't exist. This item most likely meant {$${sg.name}}`,
-        { where: where(r.ent), detail: `Field ${r.field}: <code>${esc(r.snippet)}</code>. Any value you enter for {$${sg.name}} is never read here, so this ${r.ent.kind} uses an empty value.`,
+        { where: where(r.ent), detail: `Field ${esc(r.field)}: <code>${esc(r.snippet)}</code>. Any value you enter for {$${sg.name}} is never read here, so this ${r.ent.kind} uses an empty value.`,
           fix: `Point the reference at the existing macro {$${sg.name}}. The macro names stay as they are.`, macro: r.base, target: sg.name, ent: r.ent, remap: true });
     } else {
       push('warn', 'undefined-macro', `{$${r.base}} is used but not defined in this template`,
-        { where: where(r.ent), detail: `Field ${r.field}: <code>${esc(r.snippet)}</code>. It resolves only if the macro is defined at host or global level.`, macro: r.base, ent: r.ent });
+        { where: where(r.ent), detail: `Field ${esc(r.field)}: <code>${esc(r.snippet)}</code>. It resolves only if the macro is defined at host or global level.`, macro: r.base, ent: r.ent });
     }
   }
 
@@ -516,7 +516,7 @@ function analyzeStructure(ix, defined /* Map tpl -> Set(base) */) {
       const mt = o.master_item && ix.itemMap[e.tpl].get(o.master_item.key);
       const mv = mt ? vt(mt.obj) : '?';
       if (!NUMERIC[mv]) push('err', 'value-type', `“${e.label}” is Numeric (${v.toLowerCase()}) but receives raw ${mv} text`,
-        { where: W, detail: `The last preprocessing step is <code>${pp[pp.length - 1].type}</code>, which only lets matching values through. A matching line from the ${mv} master item is still text, so Zabbix rejects it and the item becomes unsupported. It never produces a count.`,
+        { where: W, detail: `The last preprocessing step is <code>${esc(pp[pp.length - 1].type)}</code>, which only lets matching values through. A matching line from the ${esc(mv)} master item is still text, so Zabbix rejects it and the item becomes unsupported. It never produces a count.`,
           fix: 'For a count, use a numeric master (e.g. <code>log.count[]</code>/<code>logrt.count[]</code>), or add a step that turns a match into 1. Otherwise change the type to Text.', ent: e });
     }
 
@@ -570,7 +570,7 @@ function analyzeStructure(ix, defined /* Map tpl -> Set(base) */) {
         const rx = new RegExp('[=/]' + val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=[&?/]|$)');
         if (rx.test(o.url) && !o.url.includes(m.macro))
           push('warn', 'hardcoded', `“${e.label}” hard-codes “${val}” instead of using ${m.macro}`,
-            { where: W, detail: `<code>${esc(o.url)}</code>. Changing ${m.macro} has no effect on this item.`, fix: `Replace the literal with ${m.macro}.`, ent: e });
+            { where: W, detail: `<code>${esc(o.url)}</code>. Changing ${esc(m.macro)} has no effect on this item.`, fix: `Replace the literal with ${esc(m.macro)}.`, ent: e });
       }
     }
   }
@@ -590,7 +590,7 @@ function analyzeStructure(ix, defined /* Map tpl -> Set(base) */) {
       const maj = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
       if (maj[1] <= g.length / 2) continue;
       g.filter(e => get(e) !== maj[0]).forEach(e => push('warn', 'inconsistent', `“${e.label}”: ${prop} is ${get(e)} but its siblings use ${maj[0]}`,
-        { where: where(e), detail: 'Siblings: ' + g.map(x => `${x.label} = ${get(x)}`).join('; '), ent: e }));
+        { where: where(e), detail: 'Siblings: ' + g.map(x => `${esc(x.label)} = ${esc(get(x))}`).join('; '), ent: e }));
     }
   }
 

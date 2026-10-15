@@ -15,6 +15,8 @@ services:
       PUBLIC_HTTPS_PORT: ${HTTPS_PORT:-8443}
       ALLOW_CIDRS: ${ALLOW_CIDRS:-}
       TLS_CN: ${TLS_CN:-zabbix-host-manager}
+      ZABBIX_TLS_VERIFY: ${ZABBIX_TLS_VERIFY:-true}
+      ZABBIX_CA_FILE: ${ZABBIX_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}
     volumes:
       - certs:/etc/nginx/certs   # keeps the generated certificate across rebuilds; or bind-mount your own tls.crt / tls.key
     security_opt:

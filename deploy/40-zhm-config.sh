@@ -15,6 +15,8 @@ ZABBIX_URL="${ZABBIX_URL%/api_jsonrpc.php}"
 ENABLE_TLS="${ENABLE_TLS:-true}"
 PUBLIC_HTTPS_PORT="${PUBLIC_HTTPS_PORT:-8443}"
 ALLOW_CIDRS="${ALLOW_CIDRS:-}"
+ZABBIX_TLS_VERIFY="${ZABBIX_TLS_VERIFY:-true}"          # verify the Zabbix certificate when ZABBIX_URL is https://
+ZABBIX_CA_FILE="${ZABBIX_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}"  # mount your internal CA here if Zabbix uses one
 
 case "$ZABBIX_URL" in
   ""|http://*|https://*) ;;
@@ -36,6 +38,22 @@ for c in $ALLOW_CIDRS; do access="${access}        allow ${c};
         deny all;
 "
 
+upstream_tls=""
+case "$ZABBIX_URL" in
+  https://*)
+    if [ "$ZABBIX_TLS_VERIFY" = "true" ]; then
+      [ -s "$ZABBIX_CA_FILE" ] || { echo "40-zhm-config: ZABBIX_CA_FILE '$ZABBIX_CA_FILE' not found" >&2; exit 1; }
+      upstream_tls="        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 3;
+        proxy_ssl_trusted_certificate ${ZABBIX_CA_FILE};
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+"
+    else
+      echo "40-zhm-config: WARNING ZABBIX_TLS_VERIFY=false, the Zabbix certificate is NOT verified (API tokens can be intercepted)" >&2
+    fi ;;
+  http://*) echo "40-zhm-config: note: ZABBIX_URL is plain http, traffic to Zabbix (including API tokens) is unencrypted" >&2 ;;
+esac
+
 if [ -n "$ZABBIX_URL" ]; then
   config_json="{\"zabbixProxy\":true,\"target\":\"${ZABBIX_URL}\"}"
   proxy="
@@ -47,7 +65,7 @@ ${access}        limit_except POST OPTIONS { deny all; }
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_ssl_server_name on;
-        proxy_connect_timeout 10s;
+${upstream_tls}        proxy_connect_timeout 10s;
         proxy_read_timeout 120s;
         client_max_body_size 16m;
     }"
@@ -106,4 +124,4 @@ ${app}
 EOF
 fi
 
-echo "40-zhm-config: proxy=${ZABBIX_URL:-off} tls=${ENABLE_TLS} allow=${ALLOW_CIDRS:-any}"
+echo "40-zhm-config: proxy=${ZABBIX_URL:-off} tls=${ENABLE_TLS} upstream_verify=${ZABBIX_TLS_VERIFY} allow=${ALLOW_CIDRS:-any}"
