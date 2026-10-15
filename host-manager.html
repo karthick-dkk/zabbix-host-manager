@@ -206,6 +206,16 @@ table.mac tr.del td { text-decoration: line-through; opacity: .6; }
 .modal .pk-edit select { width: auto; flex: none; padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--panel); font-size: 12.5px; }
 .modal .pk-edit input { width: auto; flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--mod); border-radius: 6px; background: var(--panel); font-family: var(--mono); font-size: 12.5px; }
 @media (max-width: 760px) { .pk-row { grid-template-columns: 1fr; } }
+.dup-opts { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 13px; align-items: center; }
+.dup-opts label { display: flex; gap: 6px; align-items: center; }
+.dup-opts .search { flex: none; padding: 5px 8px; }
+.card.dup { margin-bottom: 12px; padding: 0 0 8px; border-left: 4px solid var(--ok); }
+.card.dup.attention { border-left-color: var(--err); } .card.dup.staged { border-left-color: var(--mod); } .card.dup.done { border-left-color: var(--border-strong); opacity: .8; }
+.dup-h { display: flex; gap: 8px; align-items: center; padding: 10px 14px; flex-wrap: wrap; }
+.card.dup .msg { padding: 0 14px; }
+table.dupt td.after { font-size: 12.5px; }
+table.dupt del { color: var(--err); } table.dupt ins { color: var(--ok); text-decoration: none; font-weight: 600; }
+.tchip.tdisc { background: #d6188a; color: #fff; border-color: transparent; }
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; z-index: 60; }
 table.set { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 table.set th { text-align: left; font-size: 11px; color: var(--faint); text-transform: uppercase; padding: 6px; border-bottom: 1px solid var(--border); }
@@ -232,6 +242,7 @@ table.set input { width: 100%; padding: 4px 6px; border: 1px solid var(--border)
     <button data-tab="macros" aria-selected="false">Host macros</button>
     <button data-tab="issues" aria-selected="false">Issues <span class="count" id="cIssues"></span></button>
     <button data-tab="review" aria-selected="false">Review &amp; apply <span class="count" id="cOps"></span></button>
+    <button data-tab="dups" aria-selected="false">Duplicates <span class="count" id="cDups"></span></button>
     <button data-tab="settings" aria-selected="false">Settings</button>
   </nav>
 </header>
@@ -345,6 +356,23 @@ table.set input { width: 100%; padding: 4px 6px; border: 1px solid var(--border)
     </div>
   </section>
 
+  <section id="tab-dups" class="hidden">
+    <div class="card pad" style="margin-bottom:14px">
+      <h2 style="margin:0 0 4px;font-size:16px">Duplicate interfaces: host renamer</h2>
+      <p class="hint" style="margin:0 0 10px">These hosts share an interface (same address and port). For each set, the host with the discovered tag is <b>disabled</b> and renamed to <code>&lt;IP&gt;<span class="dupSfx">-Temp</span></code>. The host you keep gets hostname <code>&lt;IP&gt;</code>, and its visible name becomes its previous hostname. The discovered hosts are renamed first, in one batch, so the IP is free when the kept host takes it. Everything is staged for Review &amp; apply.</p>
+      <div class="dup-opts">
+        <label>Discovered tag <input id="dTag" class="search mono" style="width:110px"> = <input id="dVal" class="search mono" style="width:130px"></label>
+        <label>Duplicate suffix <input id="dSfx" class="search mono" style="width:90px"></label>
+        <label>Kept host's visible name <select id="dSrc" class="sel"><option value="host">= previous hostname</option><option value="name">= previous visible name</option></select></label>
+        <label><input type="checkbox" id="dVis"> Rename the duplicate's visible name too</label>
+        <label><input type="checkbox" id="dTagDup"> Tag the duplicate <code>duplicate-of: &lt;kept host&gt;</code></label>
+        <label><input type="checkbox" id="dAllIf"> Include SNMP / IPMI / JMX interfaces</label>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center" id="dHead"></div>
+    <div id="dList"></div>
+  </section>
+
   <section id="tab-settings" class="hidden">
     <div class="card pad" style="margin-bottom:16px">
       <h2 style="margin:0 0 4px;font-size:16px">Roles</h2>
@@ -372,6 +400,7 @@ const LINUX = 'Linux by Zabbix agent -SISA', ESNODE = 'Elasticsearch by SISA', C
 const DEFAULTS = {
   clusterTemplate: CLUSTER, grpMacro: '{$GRP.CLIENT}', clientMacro: '{$CLIENT}', roleMacro: '{$ROLE}',
   syncClientMacro: true, autoDetect: true, clientGroups: [],
+  dupTag: 'type', dupValue: 'discovered', dupSuffix: '-Temp', dupNameSource: 'host', dupRenameVisible: true, dupTagDuplicate: false, dupAllIf: false,
   roles: [
     { key: 'engine', label: 'Engines', group: 'Engines', value: 'engine', templates: [LINUX], agg: true, count: '{$ENGINE.SERVER.COUNT.REQUESTED}', cpu: '{$ENGINE.CPU.REQUESTED}', mem: '{$ENGINE.MEMORY.REQUESTED}', disk: '{$ENGINE.ROOTDISK.REQUESTED}' },
     { key: 'esnode', label: 'ES nodes', group: 'ESNodes', value: 'esnode', templates: [LINUX, ESNODE], agg: true, count: '{$ES.SERVER.COUNT.REQUESTED}', cpu: '{$ES.CPU.REQUESTED}', mem: '{$ES.MEMORY.REQUESTED}', disk: '{$ES.ROOTDISK.REQUESTED}' },
@@ -420,8 +449,8 @@ async function loadFromApi() {
   const gsel = v >= 62 ? 'selectHostGroups' : 'selectGroups';
   D.calls = 0;
   const groups = await api('hostgroup.get', { output: ['groupid', 'name'] });
-  const hp = { output: ['hostid', 'host', 'name', 'status'], selectParentTemplates: ['templateid', 'host', 'name'],
-    selectMacros: ['hostmacroid', 'macro', 'value', 'type', 'description'], selectInterfaces: ['ip', 'dns', 'useip', 'main', 'type'] };
+  const hp = { output: ['hostid', 'host', 'name', 'status', 'flags'], selectParentTemplates: ['templateid', 'host', 'name'], selectTags: ['tag', 'value'],
+    selectMacros: ['hostmacroid', 'macro', 'value', 'type', 'description'], selectInterfaces: ['ip', 'dns', 'useip', 'main', 'type', 'port'] };
   hp[gsel] = ['groupid', 'name'];
   const hosts = await api('host.get', hp);
   // Templates: only the managed ones (by name) plus those actually linked to hosts and their parents — not every template in Zabbix.
@@ -455,6 +484,8 @@ function ingest(groups, templates, hosts, items) {
   D.hosts = hosts.map(h => {
     const itf = (h.interfaces || []).find(i => +i.main === 1) || (h.interfaces || [])[0] || {};
     return { id: String(h.hostid), host: h.host, name: h.name || h.host, status: +h.status || 0, ip: +itf.useip === 0 && itf.dns ? itf.dns : (itf.ip || ''),
+      flags: +h.flags || 0, tags: (h.tags || []).map(t => ({ tag: t.tag, value: t.value || '' })),
+      interfaces: (h.interfaces || []).map(f => ({ type: +f.type || 1, ip: f.ip || '', dns: f.dns || '', useip: f.useip === undefined ? 1 : +f.useip, port: String(f.port || ''), main: +f.main || 0 })),
       groups: (h.groups || []).map(g => String(g.groupid)), templates: (h.parentTemplates || []).map(t => String(t.templateid)),
       macros: (h.macros || []).map(m => ({ id: String(m.hostmacroid), macro: m.macro, value: m.value, type: +m.type || 0, description: m.description || '' })) };
   });
@@ -466,17 +497,21 @@ function ingest(groups, templates, hosts, items) {
 
 /* ========================= pending state helpers ========================= */
 function cur(h) {
-  if (!P.hosts.has(h.id)) return { groups: h.groups, templates: h.templates, macros: h.macros, pending: false };
+  if (!P.hosts.has(h.id)) return { groups: h.groups, templates: h.templates, macros: h.macros, host: h.host, name: h.name, status: h.status, tags: h.tags, pending: false };
   const p = P.hosts.get(h.id);
-  return { groups: [...p.groups], templates: [...p.templates], macros: [...p.macros.values()].filter(m => !m.del), pending: true };
+  return { groups: [...p.groups], templates: [...p.templates], macros: [...p.macros.values()].filter(m => !m.del), host: p.host, name: p.name, status: p.status, tags: p.tags, pending: true };
 }
 function edit(h) {
-  if (!P.hosts.has(h.id)) P.hosts.set(h.id, { groups: new Set(h.groups), templates: new Set(h.templates), macros: new Map(h.macros.map(m => [m.macro, Object.assign({}, m)])) });
+  if (!P.hosts.has(h.id)) P.hosts.set(h.id, { groups: new Set(h.groups), templates: new Set(h.templates), macros: new Map(h.macros.map(m => [m.macro, Object.assign({}, m)])),
+    host: h.host, name: h.name, status: h.status, tags: (h.tags || []).map(t => Object.assign({}, t)), phase: 0 });
   return P.hosts.get(h.id);
 }
 function prune(h) {   // drop pending entry when it equals the original
   const ops = hostOps(h); if (!ops.length) P.hosts.delete(h.id);
 }
+/* hostname / visible name / status / tags. phase orders host.update batches: 1 runs before 2 (frees a hostname first). */
+function setHostFields(h, f) { const p = edit(h); for (const k of ['host', 'name', 'status', 'tags', 'phase']) if (k in f) p[k] = f[k]; prune(h); }
+const tagKey = tags => JSON.stringify((tags || []).map(t => [t.tag, t.value || '']).sort());
 const gName = id => id.startsWith('new:') ? id.slice(4) : (D.groups.get(id) || {}).name || id;
 const gId = name => D.groupByName.has(name) ? D.groupByName.get(name).id : 'new:' + name;
 const tName = id => (D.templates.get(id) || {}).name || id;
@@ -628,6 +663,12 @@ function computeIssues(M) {
 function hostOps(h) {
   const p = P.hosts.get(h.id); if (!p) return [];
   const ops = [];
+  const hf = {};
+  if (p.host !== h.host) hf.host = p.host;
+  if (p.name !== h.name || 'host' in hf) hf.name = p.name;   // always send the visible name with a rename so Zabbix can't derive it from the new hostname
+  if (p.status !== h.status) hf.status = p.status;
+  if (tagKey(p.tags) !== tagKey(h.tags)) hf.tags = p.tags;
+  if (Object.keys(hf).length) ops.push({ kind: 'hostupd', fields: hf, phase: p.phase || 2, before: { host: h.host, name: h.name, status: h.status, tags: h.tags } });
   const og = new Set(h.groups), ng = p.groups;
   const add = [...ng].filter(g => !og.has(g)), rem = [...og].filter(g => !ng.has(g));
   if (add.length || rem.length) ops.push({ kind: 'groups', add, rem, groups: [...ng] });
@@ -655,14 +696,18 @@ const push = (m, k, v) => (m.get(k) || m.set(k, []).get(k)).push(v);
 /* Turn per-host operations into as few API calls as possible:
    one call per group / template touched, and macro changes in arrays of up to CHUNK. */
 function buildCalls(plan, rg) {
-  const gAdd = new Map(), gRem = new Map(), tAdd = new Map(), tRem = new Map(), mc = [], mu = [], md = [];
+  const gAdd = new Map(), gRem = new Map(), tAdd = new Map(), tRem = new Map(), mc = [], mu = [], md = [], hu = new Map();
   for (const { h, ops } of plan) for (const o of ops) {
+    if (o.kind === 'hostupd') push(hu, o.phase, { h, o });
     if (o.kind === 'groups') { o.add.forEach(g => push(gAdd, g, { h, o })); o.rem.forEach(g => push(gRem, g, { h, o })); }
     if (o.kind === 'link') o.ids.forEach(t => push(tAdd, t, { h, o }));
     if (o.kind === 'unlink') o.ids.forEach(t => push(tRem, t, { h, o }));
     if (o.kind === 'mcreate') mc.push({ h, o }); if (o.kind === 'mupdate') mu.push({ h, o }); if (o.kind === 'mdel') md.push({ h, o });
   }
   const calls = [];
+  for (const ph of [...hu.keys()].sort((a, b) => a - b)) for (const part of chunk(hu.get(ph), CHUNK)) calls.push({ method: 'host.update', items: part.map(x => Object.assign(x, { text: opText(x.o, true) })),
+    params: its => its.map(({ h, o }) => Object.assign({ hostid: h.id }, o.fields)),
+    demo: its => its.forEach(({ h, o }) => Object.assign(h, o.fields)) });
   for (const [g, list] of gAdd) for (const part of chunk(list, 100)) calls.push({ method: 'hostgroup.massadd', items: part.map(x => Object.assign(x, { text: '+group ' + gName(g) })),
     params: its => { const id = rg(g); if (id.startsWith('new:')) throw new Error('group was not created'); return { groups: [{ groupid: id }], hosts: its.map(x => ({ hostid: x.h.id })) }; },
     demo: its => its.forEach(x => { x.h.groups = [...new Set([...x.h.groups, rg(g)])]; }) });
@@ -723,6 +768,15 @@ async function applyAll(log) {
 }
 function opText(o, plain) {
   const T = s => plain ? s : esc(s);
+  if (o.kind === 'hostupd') {
+    const f = o.fields, b = o.before, out = [];
+    if ('host' in f) out.push(`hostname ${b.host} → ${f.host}`);
+    if ('name' in f) out.push(f.name === b.name ? `visible name stays ${f.name}` : `visible name ${b.name} → ${f.name}`);
+    if ('status' in f) out.push(`${b.status ? 'disabled' : 'enabled'} → ${f.status ? 'disabled' : 'enabled'}`);
+    if ('tags' in f) { const bk = new Set(b.tags.map(t => t.tag + ':' + t.value)), ak = new Set(f.tags.map(t => t.tag + ':' + t.value));
+      out.push('tags ' + [...[...ak].filter(x => !bk.has(x)).map(x => '+' + x), ...[...bk].filter(x => !ak.has(x)).map(x => '−' + x)].join(', ')); }
+    return T(out.join('; ')) + (plain ? '' : ` <span class="hint">(step ${o.phase})</span>`);
+  }
   if (o.kind === 'groups') return 'groups ' + [...o.add.map(g => '+' + gName(g)), ...o.rem.map(g => '−' + gName(g))].map(T).join(', ');
   if (o.kind === 'link') return 'link template ' + T(o.ids.map(tName).join(', '));
   if (o.kind === 'unlink') return 'unlink template (data kept) ' + T(o.ids.map(tName).join(', '));
@@ -740,6 +794,8 @@ function changed(opts = {}) {
   $('#stats').innerHTML = `<span class="stat"><b>${M.scoped.length}</b> hosts</span><span class="stat"><b>${M.clients.size}</b> clients</span><span class="stat err"><b>${e}</b> errors</span><span class="stat warn"><b>${w}</b> warnings</span>`;
   $('#cHosts').textContent = M.scoped.length;
   const ci = $('#cIssues'); ci.textContent = e + w; ci.className = 'count' + (e ? ' err' : '');
+  const dg = dupGroups().map(g => dupPlan(g)), dn = dg.filter(x => x.state === 'ready' || x.state === 'attention').length;
+  const cd = $('#cDups'); cd.textContent = dn || ''; cd.className = 'count' + (dg.some(x => x.state === 'attention') ? ' err' : '');
   const co = $('#cOps'); co.textContent = ops; co.className = 'count' + (ops ? ' mod' : '');
   const rb = $('#btnReview'); rb.textContent = ops ? `Review & apply (${ops})` : 'Review & apply'; rb.disabled = !ops;
   if (!opts.quiet) renderTab();
@@ -748,10 +804,10 @@ function changed(opts = {}) {
 function showTab(t) {
   UI.tab = t;
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
-  ['connect', 'topo', 'hosts', 'macros', 'issues', 'review', 'settings'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
+  ['connect', 'topo', 'hosts', 'macros', 'issues', 'review', 'dups', 'settings'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
   renderTab();
 }
-function renderTab() { ({ topo: renderTopo, hosts: renderHosts, macros: renderMacros, issues: renderIssues, review: renderReview, settings: renderSettings }[UI.tab] || (() => {}))(); }
+function renderTab() { ({ topo: renderTopo, hosts: renderHosts, macros: renderMacros, issues: renderIssues, review: renderReview, dups: renderDups, settings: renderSettings }[UI.tab] || (() => {}))(); }
 const hostSev = id => { const l = ISSUES.filter(i => i.host && i.host.id === id); return l.some(i => i.sev === 'err') ? 'err' : l.some(i => i.sev === 'warn') ? 'warn' : ''; };
 
 /* ========================= topology ========================= */
@@ -1236,9 +1292,9 @@ function renderReview() {
   $('#rBlock').innerHTML = empty.length ? `<div class="banner" style="background:var(--err-soft);margin-top:12px">⚠ Zabbix needs every host to be in at least one group. ${empty.map(x => esc(x.h.name)).join(', ')} would have none.</div>` : '';
   $('#rApply').disabled = !n || empty.length > 0;
   $('#rApply').textContent = D.mode === 'demo' ? 'Apply (demo, simulated)' : 'Apply to Zabbix';
-  const icon = { groups: '⧉', link: '＋', unlink: '−', mcreate: '＋', mupdate: '✎', mdel: '✕' };
+  const icon = { hostupd: '⇄', groups: '⧉', link: '＋', unlink: '−', mcreate: '＋', mupdate: '✎', mdel: '✕' };
   $('#rList').innerHTML = n ? plan.map(({ h, ops }) => `<div class="card pad" style="margin-bottom:10px;padding:10px 14px"><div style="display:flex;gap:8px;align-items:center"><b class="hn" data-open="${h.id}">${esc(h.name)}</b><span class="tech">${esc(h.host)}</span><span class="spacer"></span><button class="btn ghost sm" data-undo="${h.id}">Undo host</button></div>
-    ${ops.map(o => `<div class="op"><span class="st">${icon[o.kind]}</span><span class="what">${{ groups: 'host groups', link: 'link template', unlink: 'unlink template', mcreate: 'add macro', mupdate: 'update macro', mdel: 'remove macro' }[o.kind]}</span><span class="mono">${
+    ${ops.map(o => `<div class="op"><span class="st">${icon[o.kind]}</span><span class="what">${{ hostupd: 'host rename / status', groups: 'host groups', link: 'link template', unlink: 'unlink template', mcreate: 'add macro', mupdate: 'update macro', mdel: 'remove macro' }[o.kind]}</span><span class="mono">${
       o.kind === 'groups' ? [...o.add.map(g => `<ins>+${esc(gName(g))}${g.startsWith('new:') ? ' (new)' : ''}</ins>`), ...o.rem.map(g => `<del>−${esc(gName(g))}</del>`)].join('  ') : o.kind === 'link' || o.kind === 'unlink' ? esc(o.ids.map(tName).join(', ')) + (o.kind === 'unlink' ? ' <span class="hint">(collected data is kept)</span>' : '') : opText(o)}</span></div>`).join('')}</div>`).join('')
     : '<p class="hint">Nothing to apply. Changes you make in Topology, Hosts, Host macros or Issues show up here.</p>';
 }
@@ -1262,6 +1318,139 @@ $('#rApply').onclick = async () => {
   else { P.hosts.clear(); P.newGroups.clear(); }
   const keep = $('#rLog').innerHTML; changed(); $('#rLog').innerHTML = keep;
 };
+
+
+/* ========================= duplicate interfaces: host renamer ========================= */
+const IFTYPE = { 1: 'Agent', 2: 'SNMP', 3: 'IPMI', 4: 'JMX' };
+const isLoop = a => /^(127\.|0\.0\.0\.0$|::1$|localhost$)/i.test(a);
+const isDiscovered = h => (h.tags || []).some(t => t.tag === CFG.dupTag && (CFG.dupValue === '' || t.value === CFG.dupValue));
+const HOSTNAME_OK = /^[0-9A-Za-z_. -]+$/;
+UI.dupRole = new Map();   // group key -> Map(hostid -> 'keep' | 'dup' | 'skip')
+UI.dupFilter = 'open';
+
+function dupGroups() {
+  const by = new Map();
+  for (const h of D.hosts) for (const f of h.interfaces || []) {
+    if (!CFG.dupAllIf && f.type !== 1) continue;
+    const addr = f.useip === 0 && f.dns ? f.dns : f.ip;
+    if (!addr || isLoop(addr)) continue;
+    const key = `${f.type}|${addr}|${f.port}`;
+    const g = by.get(key) || by.set(key, { key, addr, port: f.port, type: f.type, hosts: [] }).get(key);
+    if (!g.hosts.includes(h)) g.hosts.push(h);
+  }
+  return [...by.values()].filter(g => g.hosts.length > 1).sort((a, b) => a.addr.localeCompare(b.addr, undefined, { numeric: true }));
+}
+function dupRole(g, h) {
+  const o = UI.dupRole.get(g.key); if (o && o.has(h.id)) return o.get(h.id);
+  return isDiscovered(h) ? 'dup' : 'keep';
+}
+/* Names already in use by hosts outside this set (hostname and visible name are each unique in Zabbix). */
+function takenNames(exclude) {
+  const hostN = new Map(), visN = new Map();
+  for (const h of D.hosts) { if (exclude.has(h.id)) continue; const c = cur(h); hostN.set(c.host, h); visN.set(c.name, h); }
+  return { hostN, visN };
+}
+function dupPlan(g) {
+  const ids = new Set(g.hosts.map(h => h.id));
+  const { hostN, visN } = takenNames(ids);
+  const keeps = g.hosts.filter(h => dupRole(g, h) === 'keep'), dups = g.hosts.filter(h => dupRole(g, h) === 'dup');
+  const errs = [], warns = [], changes = new Map();
+  const ip = g.addr;
+  if (!keeps.length) errs.push('No host to keep. Every host here has the discovered tag, so choose the one to keep.');
+  if (keeps.length > 1) errs.push(`${keeps.length} hosts are marked Keep. Only one can take the hostname ${ip}; set the others to Disable & rename or Leave as is.`);
+  if (!dups.length) errs.push('No host is marked as the duplicate.');
+  if (!HOSTNAME_OK.test(ip)) errs.push(`“${ip}” can't be a Zabbix hostname (only letters, digits, spaces, dots, dashes and underscores are allowed).`);
+  const K = keeps.length === 1 ? keeps[0] : null;
+  // already resolved?
+  if (K && K.host === ip && dups.every(h => h.status === 1 && h.host.startsWith(ip + CFG.dupSuffix)))
+    return { g, state: 'done', errs: [], warns: [], changes, K, dups };
+  if (!errs.length) {
+    const used = new Set();
+    for (const h of dups) {
+      if (h.flags === 4) errs.push(`${h.name} was created by low-level discovery, and Zabbix doesn't allow renaming it. Disable it instead, or fix the host prototype.`);
+      const base = ip + CFG.dupSuffix; let nm = base, n = 1;
+      while (hostN.has(nm) || visN.has(nm) || used.has(nm)) nm = `${base}-${++n}`;
+      if (nm !== base) warns.push(`${base} is already taken, so ${h.name} becomes ${nm}.`);
+      used.add(nm);
+      const f = { host: nm, status: 1, phase: 1 };
+      if (CFG.dupRenameVisible) f.name = nm;
+      if (CFG.dupTagDuplicate) f.tags = [...(h.tags || []).filter(t => t.tag !== 'duplicate-of'), { tag: 'duplicate-of', value: K.host }];
+      changes.set(h.id, f);
+    }
+    if (K.flags === 4) errs.push(`${K.name} was created by low-level discovery, and Zabbix doesn't allow renaming it.`);
+    const newName = CFG.dupNameSource === 'name' ? K.name : K.host;
+    const kf = { phase: 2 };
+    if (K.host !== ip) { kf.host = ip; kf.name = newName; }
+    if (kf.host && hostN.has(ip)) errs.push(`Another host already has the hostname ${ip}: ${hostN.get(ip).name}. Include it in this set or rename it first.`);
+    if (kf.name && kf.name !== K.name && visN.has(kf.name)) errs.push(`The visible name “${kf.name}” is already used by ${visN.get(kf.name).host}.`);
+    if (kf.name && dups.some(h => h.name === kf.name) && !CFG.dupRenameVisible) errs.push(`A duplicate still has the visible name “${kf.name}”. Turn on “Rename the duplicate's visible name too”.`);
+    if (K.status === 1) warns.push(`${K.name}, the host you keep, is disabled. Enable it in Zabbix after the rename if it should be monitored.`);
+    if (kf.host) changes.set(K.id, kf);
+  }
+  const staged = !errs.length && changes.size && [...changes].every(([id, f]) => { const p = P.hosts.get(id); return p && Object.keys(f).every(k => k === 'phase' || (k === 'tags' ? tagKey(p.tags) === tagKey(f.tags) : p[k] === f[k])); });
+  return { g, state: errs.length ? 'attention' : staged ? 'staged' : 'ready', errs, warns, changes, K, dups };
+}
+function stageDup(pl) { for (const [id, f] of pl.changes) setHostFields(D.hostById.get(id), f); }
+function unstageDup(pl) { for (const h of pl.g.hosts) setHostFields(h, { host: h.host, name: h.name, status: h.status, tags: h.tags, phase: 0 }); }
+
+function renderDups() {
+  $('#dTag').value = CFG.dupTag; $('#dVal').value = CFG.dupValue; $('#dSfx').value = CFG.dupSuffix; $('#dSrc').value = CFG.dupNameSource;
+  $('#dVis').checked = CFG.dupRenameVisible; $('#dTagDup').checked = CFG.dupTagDuplicate; $('#dAllIf').checked = CFG.dupAllIf;
+  document.querySelectorAll('.dupSfx').forEach(x => x.textContent = CFG.dupSuffix);
+  const plans = dupGroups().map(dupPlan);
+  const cnt = st => plans.filter(p => p.state === st).length;
+  const f = UI.dupFilter;
+  $('#dHead').innerHTML = [['open', `To do (${cnt('ready') + cnt('attention')})`], ['ready', `Ready (${cnt('ready')})`], ['attention', `Needs attention (${cnt('attention')})`], ['staged', `Staged (${cnt('staged')})`], ['done', `Already done (${cnt('done')})`], ['all', `All (${plans.length})`]]
+    .map(([k, l]) => `<button class="chipf${f === k ? ' on' : ''}" data-df="${k}">${l}</button>`).join('') +
+    `<span class="spacer"></span><button class="btn mod sm" id="dStageAll"${cnt('ready') ? '' : ' disabled'}>Stage all ready (${cnt('ready')})</button>${cnt('staged') ? `<button class="btn sm" id="dGoReview">Review &amp; apply →</button>` : ''}`;
+  const list = plans.filter(p => f === 'all' || (f === 'open' ? (p.state === 'ready' || p.state === 'attention') : p.state === f));
+  const badge = { ready: '<span class="b ok">ready</span>', attention: '<span class="b err">needs attention</span>', staged: '<span class="b mod">staged</span>', done: '<span class="b mute">already done</span>' };
+  $('#dList').innerHTML = list.map(pl => {
+    const g = pl.g;
+    const rows = g.hosts.map(h => {
+      const role = dupRole(g, h), ch = pl.changes.get(h.id) || {}, c = cur(h);
+      const after = (k, fmt = x => x) => k in ch && ch[k] !== h[k] ? `<del>${esc(fmt(h[k]))}</del> <ins>${esc(fmt(ch[k]))}</ins>` : esc(fmt(h[k]));
+      return `<tr data-h="${h.id}">
+        <td><select class="dRole"${pl.state === 'done' ? ' disabled' : ''}><option value="keep"${role === 'keep' ? ' selected' : ''}>Keep → hostname = IP</option><option value="dup"${role === 'dup' ? ' selected' : ''}>Disable &amp; rename</option><option value="skip"${role === 'skip' ? ' selected' : ''}>Leave as is</option></select></td>
+        <td><span class="hn" data-open="${h.id}">${esc(h.name)}</span><div class="tech">${esc(h.host)}${h.flags === 4 ? ' · LLD-created' : ''}</div></td>
+        <td>${h.status ? '<span class="b mute">disabled</span>' : '<span class="b ok">enabled</span>'}</td>
+        <td>${(h.tags || []).map(t => `<span class="tchip${t.tag === CFG.dupTag && t.value === CFG.dupValue ? ' tdisc' : ''}">${esc(t.tag)}${t.value ? ': ' + esc(t.value) : ''}</span>`).join('') || '<span class="hint">—</span>'}</td>
+        <td>${h.templates.map(t => `<span class="tchip">${esc(tName(t).replace(/ by .*SISA$| -SISA$/, ''))}</span>`).join('')}</td>
+        <td class="mono after">${after('host')}</td><td class="after">${after('name')}</td><td class="after">${after('status', v => v ? 'disabled' : 'enabled')}</td></tr>`;
+    }).join('');
+    return `<div class="card dup ${pl.state}" data-g="${esc(g.key)}"><div class="dup-h"><b class="mono">${esc(g.addr)}:${esc(g.port)}</b><span class="b mute">${IFTYPE[g.type] || 'Interface'}</span>${badge[pl.state]}<span class="hint">${g.hosts.length} hosts share this interface</span><span class="spacer"></span>
+      ${pl.state === 'ready' ? '<button class="btn sm mod" data-stage>Stage</button>' : ''}${pl.state === 'staged' ? '<button class="btn sm" data-unstage>Unstage</button>' : ''}</div>
+      <div class="tbl-wrap"><table class="grid dupt"><thead><tr><th>Action</th><th>Host</th><th>Status</th><th>Tags</th><th>Templates</th><th>Hostname after</th><th>Visible name after</th><th>Status after</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${pl.errs.map(e => `<div class="msg err">● ${esc(e)}</div>`).join('')}${pl.warns.map(e => `<div class="msg warn">● ${esc(e)}</div>`).join('')}</div>`;
+  }).join('') || `<div class="card pad hint">${plans.length ? 'Nothing in this view.' : 'No duplicate interfaces found. Every agent interface belongs to exactly one host.'}</div>`;
+}
+$('#tab-dups').addEventListener('change', e => {
+  const t = e.target;
+  const map = { dTag: ['dupTag', t.value.trim()], dVal: ['dupValue', t.value.trim()], dSfx: ['dupSuffix', t.value.trim() || '-Temp'], dSrc: ['dupNameSource', t.value], dVis: ['dupRenameVisible', t.checked], dTagDup: ['dupTagDuplicate', t.checked], dAllIf: ['dupAllIf', t.checked] };
+  if (map[t.id]) {
+    if (t.id === 'dSfx' && !HOSTNAME_OK.test(map.dSfx[1])) { toast('Suffix may only contain letters, digits, dots, dashes and underscores'); return renderDups(); }
+    CFG[map[t.id][0]] = map[t.id][1]; saveCfg(); return changed();
+  }
+  if (t.classList.contains('dRole')) {
+    const key = t.closest('[data-g]').dataset.g, hid = t.closest('tr').dataset.h;
+    const pl = dupGroups().map(dupPlan).find(x => x.g.key === key);
+    if (pl && pl.state === 'staged') unstageDup(pl);
+    (UI.dupRole.get(key) || UI.dupRole.set(key, new Map()).get(key)).set(hid, t.value);
+    changed();
+  }
+});
+$('#tab-dups').addEventListener('click', e => {
+  const t = e.target;
+  if (t.dataset.df) { UI.dupFilter = t.dataset.df; return renderDups(); }
+  if (t.dataset.open) return openDrawer(t.dataset.open);
+  if (t.id === 'dGoReview') return showTab('review');
+  const plans = () => dupGroups().map(dupPlan);
+  if (t.id === 'dStageAll') { const r = plans().filter(p => p.state === 'ready'); r.forEach(stageDup); changed(); return toast(`${r.length} duplicate set(s) staged. Check them on Review & apply.`); }
+  const card = t.closest('[data-g]'); if (!card) return;
+  const pl = plans().find(x => x.g.key === card.dataset.g); if (!pl) return;
+  if (t.hasAttribute('data-stage')) { stageDup(pl); changed(); }
+  if (t.hasAttribute('data-unstage')) { unstageDup(pl); changed(); }
+});
 
 /* ========================= settings ========================= */
 function renderSettings() {
@@ -1305,7 +1494,7 @@ function modal(title, body, onOk) {
 /* ========================= demo data ========================= */
 function demoData() {
   const groups = [], gid = n => { let g = groups.find(x => x.name === n); if (!g) { g = { groupid: String(100 + groups.length), name: n }; groups.push(g); } return g.groupid; };
-  ['Linux servers', 'Engines', 'ESNodes', 'Forwarders', 'Parsers', 'AIML', 'SOAR', 'Zabbix servers'].forEach(gid);
+  ['Linux servers', 'Engines', 'ESNodes', 'Forwarders', 'Parsers', 'AIML', 'SOAR', 'Zabbix servers', 'Discovered hosts'].forEach(gid);
   const mac = (macro, value, description) => ({ macro, value, description, type: 0 });
   const templates = [
     { templateid: '10501', host: LINUX, name: LINUX, macros: [mac('{$CLIENT}', '', 'client name for the respective server'), mac('{$ROLE}', '', 'engine / parser / forwarder / esnode /aiml'), mac('{$CPU.UTIL.L1}', '80'), mac('{$CPU.UTIL.L2}', '90'), mac('{$MEMORY.UTIL.L3}', '90'), mac('{$VFS.FS.PUSED.MAX.WARN}', '75'), mac('{$VFS.FS.PUSED.MAX.CRIT}', '85')] },
@@ -1316,7 +1505,8 @@ function demoData() {
   ];
   const hosts = []; let ip = 10, id = 20000;
   const H = (name, gs, tpls, macros, o = {}) => hosts.push({ hostid: String(++id), host: name, name, status: o.disabled ? 1 : 0, groups: gs.map(g => ({ groupid: gid(g) })),
-    parentTemplates: tpls.map(t => ({ templateid: t })), macros: Object.entries(macros).map(([m, v], k) => ({ hostmacroid: String(id * 10 + k), macro: m, value: v, type: 0 })), interfaces: [{ ip: `10.20.${Math.floor(ip / 250)}.${(ip++ % 250) + 1}`, main: 1, useip: 1 }] });
+    parentTemplates: tpls.map(t => ({ templateid: t })), macros: Object.entries(macros).map(([m, v], k) => ({ hostmacroid: String(id * 10 + k), macro: m, value: v, type: 0 })),
+    tags: o.tags || [], interfaces: [{ ip: o.ip || `10.20.${Math.floor(ip / 250)}.${(ip++ % 250) + 1}`, main: 1, useip: 1, type: 1, port: '10050' }] });
   const plan = { ACME: [3, 6, 3, 4, 1, 0], GLOBEX: [2, 4, 2, 3, 0, 1], INITECH: [2, 3, 2, 2, 0, 0], UMBRELLA: [1, 3, 1, 2, 0, 0], STARK: [3, 6, 3, 4, 0, 0], WAYNE: [2, 2, 1, 2, 0, 0] };
   const keys = ['engine', 'esnode', 'forwarder', 'parser', 'aiml', 'soar'], short = { engine: 'eng', esnode: 'es', forwarder: 'fwd', parser: 'parser', aiml: 'aiml', soar: 'soar' };
   const cpu = { engine: 16, esnode: 8, forwarder: 4, parser: 8, aiml: 32, soar: 8 }, memg = { engine: 64, esnode: 32, forwarder: 16, parser: 32, aiml: 128, soar: 16 };
@@ -1351,6 +1541,16 @@ function demoData() {
   H('elastic-test-01', ['Linux servers', 'ESNodes'], ['10501', '10502'], { '{$ROLE}': 'esnode' });
   H('zabbix-proxy-01', ['Zabbix servers'], ['10001'], {});
   H('jump-01', ['Linux servers'], ['10001'], {});
+  // duplicate interfaces created by network discovery / auto-registration
+  const disc = [{ tag: 'type', value: 'discovered' }], ipOf = n => fh(n).interfaces[0].ip;
+  fh('acme-fwd-01').tags = [{ tag: 'evp-client', value: 'ACME' }, { tag: 'evp-role', value: 'forwarder' }];
+  ['acme-fwd-01', 'globex-eng-01', 'stark-parser-02'].forEach(n => H(ipOf(n), ['Discovered hosts'], ['10501'], {}, { tags: disc, ip: ipOf(n) }));
+  H(ipOf('wayne-fwd-01') + '-Temp', ['Discovered hosts'], ['10501'], {}, { tags: disc, disabled: true });          // left over from an earlier run
+  H(ipOf('wayne-fwd-01'), ['Discovered hosts'], ['10501'], {}, { tags: disc, ip: ipOf('wayne-fwd-01') });
+  H(ipOf('initech-fwd-01'), ['Discovered hosts'], ['10501'], {}, { tags: disc, ip: ipOf('initech-fwd-01') });    // two discovered copies, no clear keeper
+  fh('initech-fwd-01').tags = disc;
+  const u = fh('umbrella-parser-01'), uip = ipOf('umbrella-parser-01');                                         // already resolved earlier
+  u.host = uip; H(uip + '-Temp', ['Discovered hosts'], ['10501'], {}, { tags: disc, ip: uip, disabled: true });
   return { groups, templates, hosts, items };
 }
 
