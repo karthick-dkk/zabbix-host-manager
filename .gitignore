@@ -1,0 +1,4 @@
+# per-machine deploy settings (created by deploy/deploy.sh)
+deploy/.env
+deploy/certs/
+.DS_Store

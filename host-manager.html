@@ -1,0 +1,1434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zabbix Client Host Manager</title>
+<style>
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --panel-2: #f0f2f5; --border: #dde1e7; --border-strong: #c5ccd6;
+  --text: #1b2230; --muted: #5d6979; --faint: #8b95a3;
+  --accent: #d4202c; --accent-soft: #fde8e9; --focus: #2563eb;
+  --err: #c62828; --err-soft: #fdecec; --warn: #ad6500; --warn-soft: #fff3df; --info: #2f6db3; --info-soft: #e8f1fb;
+  --ok: #1f7a46; --ok-soft: #e5f4ea; --mod: #6d3fc0; --mod-soft: #f1ebfb;
+  --edge: #b8c0cc;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --panel: #161a20; --panel-2: #1d222a; --border: #2a313b; --border-strong: #3a4350;
+    --text: #e6e9ee; --muted: #9aa5b3; --faint: #6c7787;
+    --accent: #ff5a63; --accent-soft: #3a1c1f; --focus: #6aa2ff;
+    --err: #ff6b6b; --err-soft: #3a1d1f; --warn: #f0a640; --warn-soft: #36290f; --info: #6aa8f0; --info-soft: #172739;
+    --ok: #4cc283; --ok-soft: #15301f; --mod: #b493f5; --mod-soft: #2a2140; --edge: #46505e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1216; --panel: #161a20; --panel-2: #1d222a; --border: #2a313b; --border-strong: #3a4350;
+  --text: #e6e9ee; --muted: #9aa5b3; --faint: #6c7787;
+  --accent: #ff5a63; --accent-soft: #3a1c1f; --focus: #6aa2ff;
+  --err: #ff6b6b; --err-soft: #3a1d1f; --warn: #f0a640; --warn-soft: #36290f; --info: #6aa8f0; --info-soft: #172739;
+  --ok: #4cc283; --ok-soft: #15301f; --mod: #b493f5; --mod-soft: #2a2140; --edge: #46505e;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+button, input, select, textarea { font: inherit; color: inherit; }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.hidden { display: none !important; }
+.spacer { flex: 1; }
+.hint { color: var(--muted); font-size: 12.5px; }
+
+header.top { position: sticky; top: 0; z-index: 30; background: var(--panel); border-bottom: 1px solid var(--border); }
+.top-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+.brand .logo { width: 22px; height: 22px; border-radius: 5px; background: var(--accent); color: #fff; display: grid; place-items: center; font: 700 11px var(--mono); }
+.conn { font-size: 12.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; }
+.dot.on { background: var(--ok); } .dot.demo { background: var(--warn); }
+.stat { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+.stat b { color: var(--text); } .stat.err b { color: var(--err); } .stat.warn b { color: var(--warn); } .stat.mod b { color: var(--mod); }
+.btn { border: 1px solid var(--border-strong); background: var(--panel); padding: 6px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--panel-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.mod { background: var(--mod); border-color: var(--mod); color: #fff; font-weight: 600; }
+.btn.sm { padding: 3px 9px; font-size: 12.5px; border-radius: 6px; }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--panel-2); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+nav.tabs { display: flex; gap: 2px; padding: 0 12px; overflow-x: auto; }
+nav.tabs button { border: 0; background: none; padding: 9px 12px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.count { font-size: 11px; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+.count.err { background: var(--err-soft); color: var(--err); border-color: transparent; }
+.count.mod { background: var(--mod-soft); color: var(--mod); border-color: transparent; }
+main { padding: 16px; max-width: 1600px; margin: 0 auto; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+.pad { padding: 16px; }
+.toolbar { display: flex; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.search { flex: 1; min-width: 180px; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel); }
+select.sel { padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel); }
+.b { font-size: 11px; padding: 1px 7px; border-radius: 999px; white-space: nowrap; display: inline-block; }
+.b.err { background: var(--err-soft); color: var(--err); } .b.warn { background: var(--warn-soft); color: var(--warn); } .b.info { background: var(--info-soft); color: var(--info); }
+.b.ok { background: var(--ok-soft); color: var(--ok); } .b.mod { background: var(--mod-soft); color: var(--mod); } .b.mute { background: var(--panel-2); color: var(--muted); }
+
+/* connect */
+.connect { max-width: 620px; margin: 6vh auto; }
+.connect h1 { font-size: 20px; margin: 0 0 4px; }
+.field { margin: 12px 0; }
+.field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+.field input[type=text], .field input[type=password], .field input[type=url] { width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel); font-family: var(--mono); font-size: 13px; }
+.err-box { background: var(--err-soft); color: var(--err); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 10px; white-space: pre-wrap; }
+ul.notes { color: var(--muted); font-size: 12.5px; padding-left: 18px; }
+
+/* layout */
+.layout { display: grid; grid-template-columns: 230px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+aside.side { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px; position: sticky; top: 104px; max-height: calc(100vh - 120px); overflow: auto; }
+@media (max-width: 900px) { aside.side { position: static; max-height: none; } }
+.side h4 { margin: 10px 6px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+.side h4:first-child { margin-top: 2px; }
+.fbtn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; border: 0; background: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; text-align: left; }
+.fbtn:hover { background: var(--panel-2); }
+.fbtn.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.fbtn .n { font-size: 11.5px; color: var(--faint); }
+.fbtn .n.err { color: var(--err); font-weight: 600; }
+
+/* topology */
+.flow { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; display: grid; grid-template-columns: 170px 210px 1fr; column-gap: 48px; align-items: center; }
+@media (max-width: 1000px) { .flow { grid-template-columns: 1fr; row-gap: 14px; } .flow svg.edges { display: none; } }
+.flow svg.edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.node { position: relative; z-index: 1; background: var(--panel); border: 1.5px solid var(--border-strong); border-radius: 10px; padding: 10px 12px; }
+.node.client { border-color: var(--accent); background: var(--accent-soft); }
+.node.client .nm { font-weight: 700; font-size: 15px; }
+.node.cluster { cursor: pointer; }
+.node.cluster:hover { border-color: var(--focus); }
+.node.ghost { border-style: dashed; color: var(--muted); background: transparent; }
+.node.bad { border-color: var(--err); }
+.node.warnb { border-color: var(--warn); }
+.node .k { font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+.node .nm { font-weight: 600; overflow-wrap: anywhere; }
+.node .sub { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.col { display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+.roles { display: flex; flex-direction: column; gap: 10px; }
+.rrow { display: grid; grid-template-columns: 200px 1fr; gap: 28px; align-items: center; }
+@media (max-width: 1200px) { .rrow { grid-template-columns: 1fr; gap: 6px; } }
+.node.role { padding: 8px 10px; }
+.node.role .nm { display: flex; justify-content: space-between; gap: 6px; }
+.size { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; font-size: 11.5px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.size .over { color: var(--err); font-weight: 600; } .size .under { color: var(--warn); font-weight: 600; } .size .okv { color: var(--ok); }
+.chips { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px dashed var(--border); border-radius: 8px; min-height: 38px; }
+.chip { border: 1.5px solid var(--border-strong); background: var(--panel); border-radius: 7px; padding: 3px 8px; font-size: 12.5px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.chip:hover { border-color: var(--focus); }
+.chip .ip { color: var(--faint); font-family: var(--mono); font-size: 11px; }
+.chip.err { border-color: var(--err); background: var(--err-soft); }
+.chip.warn { border-color: var(--warn); background: var(--warn-soft); }
+.chip.off { opacity: .55; text-decoration: line-through; }
+.chip .pm { width: 7px; height: 7px; border-radius: 50%; background: var(--mod); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 12px; align-items: center; }
+.legend i { display: inline-block; width: 26px; height: 0; border-top: 2px solid var(--edge); vertical-align: middle; margin-right: 4px; }
+.legend i.e { border-top: 2px dashed var(--err); } .legend i.w { border-top: 2px dashed var(--warn); }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; }
+table.grid { width: 100%; border-collapse: collapse; }
+table.grid th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); font-weight: 600; padding: 8px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+table.grid td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.grid tr:hover td { background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+table.grid tr.sel td { background: var(--mod-soft); }
+table.grid tr.chg td:first-child { box-shadow: inset 3px 0 0 var(--mod); }
+.hn { font-weight: 600; cursor: pointer; white-space: nowrap; }
+.hn:hover { color: var(--focus); }
+.tech { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+td select, td input.cell { padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); font-size: 12.5px; max-width: 100%; }
+td input.cell { width: 100%; min-width: 90px; font-family: var(--mono); }
+td input.cell::placeholder { color: var(--faint); font-style: italic; }
+.changed { border-color: var(--mod) !important; background: var(--mod-soft) !important; }
+.badcell { border-color: var(--err) !important; }
+.tchip { font-size: 11px; padding: 1px 6px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--border); white-space: nowrap; display: inline-block; margin: 1px 2px 1px 0; }
+.tchip.miss { border-style: dashed; color: var(--warn); background: transparent; cursor: pointer; }
+.bulkbar { display: flex; gap: 6px; align-items: center; padding: 8px 10px; background: var(--mod-soft); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.bulkbar .lbl { font-weight: 600; color: var(--mod); margin-right: 6px; }
+
+/* drawer */
+.drawer-bg { position: fixed; inset: 0; background: rgba(10,12,16,.35); z-index: 40; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100%); background: var(--panel); border-left: 1px solid var(--border); z-index: 41; overflow: auto; box-shadow: -20px 0 50px rgba(0,0,0,.18); }
+.drawer header { position: sticky; top: 0; background: var(--panel); padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-start; z-index: 2; }
+.drawer h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.drawer section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.drawer h5 { margin: 0 0 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+.kv { display: grid; grid-template-columns: 90px 1fr; gap: 8px 10px; align-items: center; font-size: 13px; }
+.kv select { width: 100%; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel); }
+table.mac { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.mac td { padding: 4px 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.mac td.m { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+table.mac input { width: 100%; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); font-family: var(--mono); font-size: 12px; }
+table.mac tr.inh td { color: var(--faint); }
+table.mac tr.del td { text-decoration: line-through; opacity: .6; }
+.msg { font-size: 12.5px; margin: 3px 0; }
+.msg.err { color: var(--err); } .msg.warn { color: var(--warn); } .msg.info { color: var(--info); }
+
+/* issues / review */
+.issue { background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--info); border-radius: 8px; padding: 9px 14px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.issue.err { border-left-color: var(--err); } .issue.warn { border-left-color: var(--warn); }
+.issue .body { flex: 1; min-width: 260px; }
+.issue .t { font-weight: 600; }
+.issue .d { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.issue code { background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
+.chipf { border: 1px solid var(--border-strong); background: var(--panel); border-radius: 999px; padding: 3px 11px; cursor: pointer; font-size: 12.5px; }
+.chipf.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.op { display: grid; grid-template-columns: 22px 150px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 13px; align-items: baseline; }
+.op:last-child { border-bottom: 0; }
+.op .what { color: var(--muted); font-size: 12px; }
+.op del { color: var(--err); } .op ins { color: var(--ok); text-decoration: none; }
+.op .st { font-size: 13px; }
+.log { font-family: var(--mono); font-size: 12px; background: var(--panel-2); border-radius: 8px; padding: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; }
+.banner { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--warn-soft); }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(10,12,16,.45); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; width: min(560px, 100%); padding: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.3); max-height: 90vh; overflow: auto; }
+.modal h3 { margin: 0 0 10px; font-size: 16px; }
+.modal label.f { display: block; font-size: 12.5px; color: var(--muted); margin: 10px 0 4px; }
+.modal input[type=text], .modal select, .modal textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel); font-size: 13px; }
+.modal textarea { font-family: var(--mono); min-height: 180px; }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.modal.wide { width: min(980px, 100%); }
+.pk-list { margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; max-height: 52vh; overflow: auto; }
+.pk-row { display: grid; grid-template-columns: minmax(260px, 1.3fr) minmax(120px, .7fr) minmax(220px, 1fr); gap: 10px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.pk-row:last-child { border-bottom: 0; }
+.pk-row.on { background: var(--mod-soft); }
+.pk-name { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; cursor: pointer; }
+.pk-src { flex-basis: 100%; padding-left: 22px; font-size: 11.5px; color: var(--faint); }
+.pk-cur { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.pk-edit { display: flex; gap: 6px; }
+.modal .pk-edit select { width: auto; flex: none; padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--panel); font-size: 12.5px; }
+.modal .pk-edit input { width: auto; flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--mod); border-radius: 6px; background: var(--panel); font-family: var(--mono); font-size: 12.5px; }
+@media (max-width: 760px) { .pk-row { grid-template-columns: 1fr; } }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; z-index: 60; }
+table.set { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.set th { text-align: left; font-size: 11px; color: var(--faint); text-transform: uppercase; padding: 6px; border-bottom: 1px solid var(--border); }
+table.set td { padding: 4px; border-bottom: 1px solid var(--border); }
+table.set input { width: 100%; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); font-family: var(--mono); font-size: 12px; }
+.cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 4px 14px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <div class="brand"><span class="logo">ZH</span> Client Host Manager</div>
+    <span class="conn" id="conn"><span class="dot"></span> not connected</span>
+    <div class="spacer"></div>
+    <span id="stats" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+    <button class="btn hidden" id="btnReload" title="Reload everything from Zabbix">↻ Reload</button>
+    <button class="btn ghost hidden" id="btnDisconnect" title="Back to the connect screen">Disconnect</button>
+    <button class="btn mod hidden" id="btnReview">Review &amp; apply</button>
+    <button class="btn ghost" id="btnTheme" aria-label="Toggle theme">◐</button>
+  </div>
+  <nav class="tabs hidden" id="tabs">
+    <button data-tab="topo" aria-selected="true">Client topology</button>
+    <button data-tab="hosts" aria-selected="false">Hosts <span class="count" id="cHosts"></span></button>
+    <button data-tab="macros" aria-selected="false">Host macros</button>
+    <button data-tab="issues" aria-selected="false">Issues <span class="count" id="cIssues"></span></button>
+    <button data-tab="review" aria-selected="false">Review &amp; apply <span class="count" id="cOps"></span></button>
+    <button data-tab="settings" aria-selected="false">Settings</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-connect">
+    <div class="card pad connect">
+      <h1>Connect to Zabbix</h1>
+      <p class="hint">Loads hosts, host groups, linked templates and host macros through the Zabbix API. Nothing is written until you click <b>Apply</b> on the Review screen.</p>
+      <div class="field"><label for="apiUrl">Zabbix URL</label><input type="url" id="apiUrl" placeholder="https://zabbix.example.com  (or …/api_jsonrpc.php)"></div>
+      <div class="field"><label for="apiToken">API token  (Users → API tokens)</label><input type="password" id="apiToken" placeholder="token" autocomplete="off"></div>
+      <div class="field"><label for="tokStore">Remember the token</label>
+        <select id="tokStore" class="sel" style="width:100%">
+          <option value="none">Don't remember (ask every time)</option>
+          <option value="session">Until this browser tab closes</option>
+          <option value="local">Permanently on this device, and connect automatically</option>
+        </select>
+        <div class="hint" id="tokWarn" style="margin-top:6px"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn primary" id="btnConnect">Connect &amp; load</button>
+        <button class="btn" id="btnDemo">Try with demo data</button>
+        <button class="btn ghost hidden" id="btnForget">Forget saved token</button>
+      </div>
+      <div id="connErr"></div>
+      <ul class="notes">
+        <li>The token's user needs <b>read-write</b> permission on the client host groups to apply changes. Read-only works for review.</li>
+        <li>The page calls <code>api_jsonrpc.php</code> straight from your browser, and Zabbix allows this by default. If you open this file from disk and the browser blocks the request, serve it locally instead (<code>python3 -m http.server</code>).</li>
+        <li id="proxyNote" class="hidden"></li>
+        <li>The Zabbix URL and your Settings are stored in this browser only. The token is stored only if you choose to remember it above.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="tab-topo" class="hidden">
+    <div class="layout">
+      <aside class="side" id="topoSide"></aside>
+      <div>
+        <div class="legend">
+          <span><i></i>linked correctly</span><span><i class="w"></i>missing / incomplete</span><span><i class="e"></i>wrong mapping</span>
+          <span class="b err">host has errors</span><span class="b warn">host has warnings</span><span><span class="dot" style="background:var(--mod)"></span> pending change</span>
+          <span class="spacer"></span><span class="hint">Click a host or cluster to edit it</span>
+        </div>
+        <div id="topo"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-hosts" class="hidden">
+    <div class="card">
+      <div class="toolbar">
+        <input class="search" id="hSearch" type="search" placeholder="Search host, IP, group…">
+        <select class="sel" id="hClient"></select>
+        <select class="sel" id="hRole"></select>
+        <select class="sel" id="hState">
+          <option value="">All states</option><option value="issues">With problems</option><option value="unassigned">No client</option><option value="changed">Changed</option>
+        </select>
+        <label class="hint"><input type="checkbox" id="hAll"> Include hosts outside scope</label>
+      </div>
+      <div class="bulkbar hidden" id="hBulk">
+        <span class="lbl" id="hSelN"></span>
+        <button class="btn sm" data-b="client">Set client…</button>
+        <button class="btn sm" data-b="role">Set role…</button>
+        <button class="btn sm" data-b="tpl">Link expected templates</button>
+        <button class="btn sm" data-b="sync">Sync {$CLIENT}/{$ROLE}</button>
+        <button class="btn sm" data-b="macro">Host macros…</button>
+        <button class="btn sm" data-b="revert">Revert</button>
+        <span class="spacer"></span><button class="btn sm ghost" data-b="none">Deselect</button>
+      </div>
+      <div class="tbl-wrap"><table class="grid" id="hTable"></table></div>
+    </div>
+  </section>
+
+  <section id="tab-macros" class="hidden">
+    <div class="card">
+      <div class="toolbar">
+        <select class="sel" id="mPreset">
+          <option value="mapping">Preset: client mapping ({$CLIENT}, {$ROLE})</option>
+          <option value="sizing">Preset: cluster sizing (requested values)</option>
+          <option value="custom">Custom columns</option>
+        </select>
+        <select class="sel" id="mClient"></select>
+        <select class="sel" id="mRole"></select>
+        <input class="search" id="mAddCol" list="macroNames" placeholder="Add a macro column, e.g. {$CPU.UTIL.L1}" style="max-width:300px">
+        <datalist id="macroNames"></datalist>
+        <span class="spacer"></span>
+        <button class="btn sm" id="mImport">Import CSV / paste…</button>
+        <button class="btn sm" id="mExport">Export CSV</button>
+      </div>
+      <p class="hint" style="padding:0 12px">Grey text is the value inherited from the template. Type to override it on the host, and clear the cell to go back to inheriting. Enter or ↓ moves down a column. Pasting from Excel fills the cells below and to the right.</p>
+      <div class="tbl-wrap"><table class="grid" id="mTable"></table></div>
+    </div>
+  </section>
+
+  <section id="tab-issues" class="hidden">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center" id="iHead"></div>
+    <div id="iList"></div>
+  </section>
+
+  <section id="tab-review" class="hidden">
+    <div class="card pad">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <h2 style="margin:0;font-size:16px">Pending changes</h2><span class="hint" id="rSum"></span><span class="spacer"></span>
+        <button class="btn sm" id="rExport">Download plan (JSON)</button>
+        <button class="btn sm" id="rDiscard">Discard all</button>
+        <button class="btn primary" id="rApply">Apply to Zabbix</button>
+      </div>
+      <div id="rBlock"></div>
+      <div id="rList" style="margin-top:12px"></div>
+      <div id="rLog"></div>
+    </div>
+  </section>
+
+  <section id="tab-settings" class="hidden">
+    <div class="card pad" style="margin-bottom:16px">
+      <h2 style="margin:0 0 4px;font-size:16px">Roles</h2>
+      <p class="hint">Each role is a host group. The <b>Elasticsearch Cluster by HTTP SISA</b> template totals a client's hosts with <code>group="{$GRP.CLIENT}" and group="&lt;role group&gt;"</code>, and only the four aggregated roles have items for this. The macro columns are read from the cluster host to show requested against allocated.</p>
+      <div class="tbl-wrap"><table class="set" id="sRoles"></table></div>
+    </div>
+    <div class="card pad" style="margin-bottom:16px">
+      <h2 style="margin:0 0 4px;font-size:16px">Templates &amp; macros</h2>
+      <div class="kv" style="grid-template-columns:240px 1fr;max-width:820px" id="sTpl"></div>
+    </div>
+    <div class="card pad">
+      <h2 style="margin:0 0 4px;font-size:16px">Client groups</h2>
+      <p class="hint">Host groups that represent a client. Groups are detected automatically when a host's <code>{$GRP.CLIENT}</code> or <code>{$CLIENT}</code> names them. Tick any others.</p>
+      <label class="hint"><input type="checkbox" id="sAuto"> Auto-detect from macros</label>
+      <div class="cgrid" id="sGroups" style="margin-top:8px"></div>
+      <div style="margin-top:14px;display:flex;gap:8px"><button class="btn sm" id="sReset">Reset settings to defaults</button></div>
+    </div>
+  </section>
+</main>
+<div id="drawerRoot"></div>
+
+<script>
+/* ========================= configuration ========================= */
+const LINUX = 'Linux by Zabbix agent -SISA', ESNODE = 'Elasticsearch by SISA', CLUSTER = 'Elasticsearch Cluster by HTTP SISA';
+const DEFAULTS = {
+  clusterTemplate: CLUSTER, grpMacro: '{$GRP.CLIENT}', clientMacro: '{$CLIENT}', roleMacro: '{$ROLE}',
+  syncClientMacro: true, autoDetect: true, clientGroups: [],
+  roles: [
+    { key: 'engine', label: 'Engines', group: 'Engines', value: 'engine', templates: [LINUX], agg: true, count: '{$ENGINE.SERVER.COUNT.REQUESTED}', cpu: '{$ENGINE.CPU.REQUESTED}', mem: '{$ENGINE.MEMORY.REQUESTED}', disk: '{$ENGINE.ROOTDISK.REQUESTED}' },
+    { key: 'esnode', label: 'ES nodes', group: 'ESNodes', value: 'esnode', templates: [LINUX, ESNODE], agg: true, count: '{$ES.SERVER.COUNT.REQUESTED}', cpu: '{$ES.CPU.REQUESTED}', mem: '{$ES.MEMORY.REQUESTED}', disk: '{$ES.ROOTDISK.REQUESTED}' },
+    { key: 'forwarder', label: 'Forwarders', group: 'Forwarders', value: 'forwarder', templates: [LINUX], agg: true, count: '{$FWD.SERVER.COUNT.REQUESTED}', cpu: '{$FWD.CPU.REQUESTED}', mem: '{$FWD.MEMORY.REQUESTED}', disk: '{$FWD.ROOTDISK.REQUESTED}' },
+    { key: 'parser', label: 'Parsers', group: 'Parsers', value: 'parser', templates: [LINUX], agg: true, count: '{$PARSER.SERVER.COUNT.REQUESTED}', cpu: '{$PARSER.CPU.REQUESTED}', mem: '{$PARSER.MEMORY.REQUESTED}', disk: '{$PARSER.ROOTDISK.REQUESTED}' },
+    { key: 'aiml', label: 'AIML', group: 'AIML', value: 'aiml', templates: [LINUX], agg: false, count: '', cpu: '{$AIML.CPU.REQUESTED}', mem: '{$AIML.MEMORY.REQUESTED}', disk: '{$AIML.ROOTDISK.REQUESTED}' },
+    { key: 'soar', label: 'SOAR', group: 'SOAR', value: 'soar', templates: [LINUX], agg: false, count: '', cpu: '{$SOAR.CPU.REQUESTED}', mem: '{$SOAR.MEMORY.REQUESTED}', disk: '{$SOAR.ROOTDISK.REQUESTED}' },
+  ],
+};
+const LS = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+let CFG = (() => { try { return Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), JSON.parse(LS.get('zhm:settings') || '{}')); } catch (e) { return JSON.parse(JSON.stringify(DEFAULTS)); } })();
+const saveCfg = () => LS.set('zhm:settings', JSON.stringify(CFG));
+const MTYPE = { 0: 'Text', 1: 'Secret', 2: 'Vault' };
+
+/* ========================= state ========================= */
+const D = { mode: null, url: '', token: '', version: '', headerAuth: true, groups: new Map(), groupByName: new Map(), templates: new Map(), tplByName: new Map(), hosts: [], hostById: new Map(), metrics: new Map() };
+const P = { hosts: new Map(), newGroups: new Set() };   // pending desired state per host
+const UI = { tab: 'topo', client: null, sel: new Set(), issueF: 'all', cols: [], preset: 'mapping' };
+let ISSUES = [];
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2800); }
+
+/* ========================= Zabbix API ========================= */
+let rid = 0;
+async function api(method, params, noAuth) {
+  const headers = { 'Content-Type': 'application/json' };
+  const body = { jsonrpc: '2.0', method, params, id: ++rid };
+  D.calls = (D.calls || 0) + 1;
+  if (!noAuth) { if (D.headerAuth) headers.Authorization = 'Bearer ' + D.token; else body.auth = D.token; }
+  let r;
+  try { r = await fetch(D.url, { method: 'POST', headers, body: JSON.stringify(body) }); }
+  catch (e) { throw new Error(`Couldn't reach ${D.url} (${e.message}). Check the URL, VPN or TLS certificate, or CORS if you opened this file from disk.`); }
+  if (!r.ok) throw new Error(`HTTP ${r.status} from ${D.url}`);
+  const j = await r.json();
+  if (j.error) throw new Error(`${method}: ${j.error.message} ${j.error.data || ''}`);
+  return j.result;
+}
+function normUrl(u) { u = u.trim().replace(/\/+$/, ''); if (!/^https?:\/\//.test(u)) u = 'https://' + u; return /api_jsonrpc\.php$/.test(u) ? u : u + '/api_jsonrpc.php'; }
+
+async function loadFromApi() {
+  D.version = await api('apiinfo.version', {}, true);
+  const [maj, min] = D.version.split('.').map(Number), v = maj * 10 + min;
+  D.headerAuth = v >= 64;
+  const gsel = v >= 62 ? 'selectHostGroups' : 'selectGroups';
+  D.calls = 0;
+  const groups = await api('hostgroup.get', { output: ['groupid', 'name'] });
+  const hp = { output: ['hostid', 'host', 'name', 'status'], selectParentTemplates: ['templateid', 'host', 'name'],
+    selectMacros: ['hostmacroid', 'macro', 'value', 'type', 'description'], selectInterfaces: ['ip', 'dns', 'useip', 'main', 'type'] };
+  hp[gsel] = ['groupid', 'name'];
+  const hosts = await api('host.get', hp);
+  // Templates: only the managed ones (by name) plus those actually linked to hosts and their parents — not every template in Zabbix.
+  const tmap = new Map();
+  const tsel = { output: ['templateid', 'host', 'name'], selectMacros: ['macro', 'value', 'type', 'description'], selectParentTemplates: ['templateid'] };
+  const fetchT = async extra => {
+    let r; try { r = await api('template.get', Object.assign({}, tsel, extra)); }
+    catch (e) { const q = Object.assign({}, tsel, extra); delete q.selectParentTemplates; r = await api('template.get', q); }
+    r.forEach(t => tmap.set(String(t.templateid), t)); return r;
+  };
+  await fetchT({ filter: { host: [...new Set([CFG.clusterTemplate, ...CFG.roles.flatMap(r => r.templates)])] } });
+  let need = [...new Set(hosts.flatMap(h => (h.parentTemplates || []).map(t => String(t.templateid))))].filter(id => !tmap.has(id));
+  for (let depth = 0; need.length && depth < 5; depth++) {
+    const r = await fetchT({ templateids: need });
+    need = [...new Set(r.flatMap(t => (t.parentTemplates || []).map(x => String(x.templateid))))].filter(id => !tmap.has(id));
+  }
+  const templates = [...tmap.values()];
+  let items = [];
+  try { items = await api('item.get', { output: ['hostid', 'key_', 'lastvalue'], hostids: hosts.map(h => h.hostid), filter: { key_: ['system.cpu.num', 'vm.memory.size[total]', 'vfs.fs.dependent.size[/,total]'] } }); } catch (e) { /* metrics are optional */ }
+  ingest(groups, templates, hosts.map(h => Object.assign(h, { groups: h.hostgroups || h.groups })), items);
+  D.loadCalls = D.calls;
+}
+
+function ingest(groups, templates, hosts, items) {
+  D.groups = new Map(groups.map(g => [String(g.groupid), { id: String(g.groupid), name: g.name }]));
+  D.groupByName = new Map([...D.groups.values()].map(g => [g.name, g]));
+  D.templates = new Map(templates.map(t => [String(t.templateid), { id: String(t.templateid), host: t.host, name: t.name,
+    macros: (t.macros || []).map(m => ({ macro: m.macro, value: m.value || '', type: +m.type || 0, description: m.description || '' })),
+    parents: (t.parentTemplates || t.templates || []).map(x => String(x.templateid)) }]));
+  D.tplByName = new Map(); D.templates.forEach(t => { D.tplByName.set(t.host, t); D.tplByName.set(t.name, t); });
+  D.hosts = hosts.map(h => {
+    const itf = (h.interfaces || []).find(i => +i.main === 1) || (h.interfaces || [])[0] || {};
+    return { id: String(h.hostid), host: h.host, name: h.name || h.host, status: +h.status || 0, ip: +itf.useip === 0 && itf.dns ? itf.dns : (itf.ip || ''),
+      groups: (h.groups || []).map(g => String(g.groupid)), templates: (h.parentTemplates || []).map(t => String(t.templateid)),
+      macros: (h.macros || []).map(m => ({ id: String(m.hostmacroid), macro: m.macro, value: m.value, type: +m.type || 0, description: m.description || '' })) };
+  });
+  D.hostById = new Map(D.hosts.map(h => [h.id, h]));
+  D.metrics = new Map();
+  (items || []).forEach(i => { const m = D.metrics.get(String(i.hostid)) || {}; m[i.key_] = parseFloat(i.lastvalue); D.metrics.set(String(i.hostid), m); });
+  P.hosts.clear(); P.newGroups.clear();
+}
+
+/* ========================= pending state helpers ========================= */
+function cur(h) {
+  if (!P.hosts.has(h.id)) return { groups: h.groups, templates: h.templates, macros: h.macros, pending: false };
+  const p = P.hosts.get(h.id);
+  return { groups: [...p.groups], templates: [...p.templates], macros: [...p.macros.values()].filter(m => !m.del), pending: true };
+}
+function edit(h) {
+  if (!P.hosts.has(h.id)) P.hosts.set(h.id, { groups: new Set(h.groups), templates: new Set(h.templates), macros: new Map(h.macros.map(m => [m.macro, Object.assign({}, m)])) });
+  return P.hosts.get(h.id);
+}
+function prune(h) {   // drop pending entry when it equals the original
+  const ops = hostOps(h); if (!ops.length) P.hosts.delete(h.id);
+}
+const gName = id => id.startsWith('new:') ? id.slice(4) : (D.groups.get(id) || {}).name || id;
+const gId = name => D.groupByName.has(name) ? D.groupByName.get(name).id : 'new:' + name;
+const tName = id => (D.templates.get(id) || {}).name || id;
+const roleByGroup = name => CFG.roles.find(r => r.group === name);
+const roleByValue = v => CFG.roles.find(r => r.value === v);
+const clusterTplId = () => (D.tplByName.get(CFG.clusterTemplate) || {}).id;
+const mval = (c, macro) => { const m = c.macros.find(x => x.macro === macro); return m ? m.value : undefined; };
+
+function tplClosure(ids) {
+  const out = new Set(), st = [...ids];
+  while (st.length) { const id = st.pop(); if (out.has(id)) continue; out.add(id); const t = D.templates.get(id); if (t) st.push(...t.parents); }
+  return out;
+}
+function inherited(c, macro) {
+  for (const id of tplClosure(c.templates)) { const t = D.templates.get(id); const m = t && t.macros.find(x => x.macro === macro); if (m) return m; }
+  return null;
+}
+function knownMacros(c) { const s = new Set(); tplClosure(c.templates).forEach(id => (D.templates.get(id) || { macros: [] }).macros.forEach(m => s.add(m.macro))); return s; }
+
+function setMacro(h, macro, value, type) {
+  const p = edit(h); const ex = p.macros.get(macro);
+  if (ex) { ex.value = value; ex.del = false; if (type !== undefined) ex.type = type; ex.touched = true; }
+  else p.macros.set(macro, { macro, value, type: type || 0, description: '', touched: true });
+  prune(h);
+}
+function delMacro(h, macro) { const p = edit(h); const ex = p.macros.get(macro); if (!ex) return; if (ex.id) ex.del = true; else p.macros.delete(macro); prune(h); }
+function setGroups(h, fn) { const p = edit(h); fn(p.groups); prune(h); }
+
+/* ========================= derived model ========================= */
+function clientSet() {
+  const s = new Set(CFG.clientGroups.filter(n => D.groupByName.has(n) || P.newGroups.has(n)));
+  P.newGroups.forEach(n => s.add(n));
+  if (CFG.autoDetect) D.hosts.forEach(h => { const c = cur(h); [CFG.grpMacro, CFG.clientMacro].forEach(mc => { const v = mval(c, mc); if (v && D.groupByName.has(v) && !roleByGroup(v)) s.add(v); }); });
+  CFG.roles.forEach(r => s.delete(r.group));
+  return s;
+}
+function info(h, clients) {
+  const c = cur(h), names = c.groups.map(gName);
+  const cl = names.filter(n => clients.has(n));
+  const roles = names.map(roleByGroup).filter(Boolean);
+  const isCluster = c.templates.includes(clusterTplId());
+  const grp = mval(c, CFG.grpMacro);
+  let client = cl.length === 1 ? cl[0] : null;
+  if (isCluster && !cl.length && grp && clients.has(grp)) client = grp;
+  return { h, c, names, cl, roles, isCluster, grp, client, clientMacro: mval(c, CFG.clientMacro), roleMacro: mval(c, CFG.roleMacro), tplNames: c.templates.map(tName) };
+}
+const managedTplIds = () => new Set([CFG.clusterTemplate, ...CFG.roles.flatMap(r => r.templates)].map(n => (D.tplByName.get(n) || {}).id).filter(Boolean));
+function inScope(i, clients) { const m = managedTplIds(); return i.c.templates.some(t => m.has(t)) || i.cl.length || i.roles.length || (i.grp && clients.has(i.grp)); }
+
+function model() {
+  const clients = clientSet();
+  const infos = D.hosts.map(h => info(h, clients));
+  return { clients, infos, byId: new Map(infos.map(i => [i.h.id, i])), scoped: infos.filter(i => inScope(i, clients)) };
+}
+
+/* ========================= similarity (typo detection) ========================= */
+function lev(a, b) { const d = Array.from({ length: a.length + 1 }, (_, i) => [i]); for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[a.length][b.length]; }
+const isAbbrev = (s, l) => { if (s[0] !== l[0]) return false; let i = 0; for (const c of l) if (c === s[i]) i++; return i === s.length; };
+const tokSim = (a, b) => { if (a === b) return 1; const [s, l] = a.length <= b.length ? [a, b] : [b, a]; if (s.length >= 2 && l.startsWith(s)) return .85; if (s.length >= 2 && isAbbrev(s, l)) return .8; return 1 - lev(a, b) / Math.max(a.length, b.length); };
+function suggest(macro, pool, min = .75) {
+  const base = x => x.replace(/^\{\$|\}$/g, '').split(':')[0]; const A = base(macro).split('.');
+  let best = null, sc = 0;
+  for (const c of pool) { const B = base(c).split('.'); const s = A.length === B.length ? A.reduce((t, x, i) => t + tokSim(x, B[i]), 0) / A.length : 0; if (s > sc) { sc = s; best = c; } }
+  return sc >= min ? best : null;
+}
+
+/* ========================= checks ========================= */
+function computeIssues(M) {
+  const out = [], add = (sev, code, title, o = {}) => out.push(Object.assign({ sev, code, title }, o));
+  const clusterId = clusterTplId();
+  for (const i of M.scoped) {
+    const h = i.h, nm = h.name;
+    if (i.cl.length > 1) add('err', 'multi-client', `${nm} is in ${i.cl.length} client groups: ${i.cl.join(', ')}`, { host: h, detail: 'Its CPU, memory and server count are added to every one of these clients.' });
+    if (i.isCluster) {
+      if (!i.grp) add('err', 'cluster-grp', `Cluster host ${nm} has no ${CFG.grpMacro}`, { host: h, detail: 'Every role.* item on this host is empty.',
+        fix: i.cl.length === 1 ? { label: `Set ${CFG.grpMacro} = ${i.cl[0]}`, fn: () => setMacro(h, CFG.grpMacro, i.cl[0]) } : null });
+      else if (!M.clients.has(i.grp) && !D.groupByName.has(i.grp)) {
+        const near = [...M.clients].find(c => c.toLowerCase() === i.grp.toLowerCase());
+        add('err', 'cluster-grp', `Cluster host ${nm}: ${CFG.grpMacro}="${i.grp}" doesn't match any host group`, { host: h,
+          detail: 'Its formulas filter on group="' + esc(i.grp) + '", which matches no hosts, so every Allocated / Used value is 0.' + (near ? ` Group names are case-sensitive; the group is "${esc(near)}".` : ''),
+          fix: near || i.cl.length === 1 ? { label: `Set ${CFG.grpMacro} = ${near || i.cl[0]}`, fn: () => setMacro(h, CFG.grpMacro, near || i.cl[0]) } : null });
+      } else if (i.cl.length === 1 && i.grp !== i.cl[0]) add('err', 'cluster-grp', `Cluster host ${nm} is in group ${i.cl[0]} but ${CFG.grpMacro}="${i.grp}"`, { host: h,
+          detail: `It totals client ${esc(i.grp)}'s hosts, not ${esc(i.cl[0])}'s.`, fix: { label: `Set ${CFG.grpMacro} = ${i.cl[0]}`, fn: () => setMacro(h, CFG.grpMacro, i.cl[0]) } });
+      else if (!i.cl.length && i.client) add('info', 'cluster-group', `Cluster host ${nm} is not in its client group ${i.client}`, { host: h, detail: 'Aggregation still works. Adding it to the group keeps permissions and dashboards consistent.',
+          fix: { label: `Add to group ${i.client}`, fn: () => setGroups(h, g => g.add(gId(i.client))) } });
+      if (i.client) for (const r of CFG.roles.filter(r => r.agg)) for (const k of ['count', 'cpu', 'mem']) {
+        const mc = r[k]; if (!mc) continue;
+        const v = mval(i.c, mc), inh = inherited(i.c, mc);
+        if ((v === undefined || v === '') && !(inh && inh.value)) add('warn', 'requested-empty', `${nm}: ${mc} is empty`, { host: h, client: i.client, macro: mc,
+          detail: `The calculated item for ${esc(r.label)} ${k === 'count' ? 'server count' : k.toUpperCase()} requested stays unsupported until it has a value.`, go: 'sizing' });
+      }
+    } else {
+      if (!i.cl.length) {
+        const want = i.clientMacro && M.clients.has(i.clientMacro) ? i.clientMacro : null;
+        add(i.roles.length ? 'err' : 'warn', 'no-client', `${nm} is not assigned to any client`, { host: h,
+          detail: i.roles.length ? `It's in role group ${esc(i.roles.map(r => r.group).join(', '))}, but no client's cluster counts it.` : 'It has a managed template but no client group.',
+          fix: want ? { label: `Add to group ${want} (from ${CFG.clientMacro})`, fn: () => setGroups(h, g => g.add(gId(want))) } : null });
+      }
+      if (i.cl.length && !i.roles.length) {
+        const r = i.roleMacro && roleByValue(i.roleMacro);
+        add('warn', 'no-role', `${nm} has no role group`, { host: h, detail: 'It belongs to ' + esc(i.cl.join(', ')) + ' but isn\'t counted under Engines, ESNodes, Forwarders or Parsers.',
+          fix: r ? { label: `Add to group ${r.group} (from ${CFG.roleMacro}=${r.value})`, fn: () => setGroups(h, g => g.add(gId(r.group))) } : null });
+      }
+      if (i.roles.length > 1) add('warn', 'multi-role', `${nm} is in ${i.roles.length} role groups: ${i.roles.map(r => r.group).join(', ')}`, { host: h, detail: 'Its CPU and memory are counted under every one of these roles.' });
+      if (i.cl.length === 1 && CFG.syncClientMacro && i.clientMacro !== i.cl[0])
+        add(i.clientMacro ? 'err' : 'warn', 'client-macro', i.clientMacro ? `${nm}: ${CFG.clientMacro}="${i.clientMacro}" but its client group is ${i.cl[0]}` : `${nm}: ${CFG.clientMacro} is not set`, { host: h,
+          detail: 'Alerts and dashboards that use the macro show the wrong client name.', fix: { label: `Set ${CFG.clientMacro} = ${i.cl[0]}`, fn: () => setMacro(h, CFG.clientMacro, i.cl[0]) } });
+      if (i.roles.length === 1 && i.roleMacro !== i.roles[0].value)
+        add(i.roleMacro ? 'err' : 'warn', 'role-macro', i.roleMacro ? `${nm}: ${CFG.roleMacro}="${i.roleMacro}" but it's in group ${i.roles[0].group}` : `${nm}: ${CFG.roleMacro} is not set`, { host: h,
+          detail: 'The macro and the group disagree about this host\'s role.', fix: { label: `Set ${CFG.roleMacro} = ${i.roles[0].value}`, fn: () => setMacro(h, CFG.roleMacro, i.roles[0].value) } });
+      for (const r of i.roles) {
+        const miss = r.templates.filter(n => D.tplByName.has(n) && !i.c.templates.includes(D.tplByName.get(n).id));
+        if (miss.length) add('warn', 'missing-template', `${nm} (${r.label}) is missing template ${miss.join(', ')}`, { host: h,
+          detail: miss.includes(LINUX) ? 'The cluster totals use system.cpu.num and vm.memory.* from this template, so this host counts as 0.' : 'This role is expected to have these templates.',
+          fix: { label: 'Link ' + miss.join(', '), fn: () => { const p = edit(h); miss.forEach(n => p.templates.add(D.tplByName.get(n).id)); prune(h); } } });
+      }
+    }
+    // host macros that look like a misspelling of a template macro (e.g. {$ES.MEM.REQUESTED} vs {$ES.MEMORY.REQUESTED}).
+    // Only flagged when the intended macro is NOT also set on the host, and rolled up per host so it can't flood the list.
+    const known = knownMacros(i.c), own = new Set(i.c.macros.map(m => m.macro)), typos = [];
+    if (known.size) for (const m of i.c.macros) {
+      if (known.has(m.macro) || [CFG.grpMacro, CFG.clientMacro, CFG.roleMacro].includes(m.macro)) continue;
+      const base = m.macro.split(':')[0] + (m.macro.includes(':') ? '}' : ''); if (known.has(base)) continue;
+      const s = suggest(m.macro, known, .85);
+      if (s && !own.has(s)) typos.push({ m, s });
+    }
+    if (typos.length) add('warn', 'macro-typo', typos.length === 1 ? `${nm}: host macro ${typos[0].m.macro} isn't used by any linked template. Did you mean ${typos[0].s}?`
+      : `${nm}: ${typos.length} host macros look like misspelled template macros`, { host: h,
+      detail: typos.slice(0, 6).map(t => `<code>${esc(t.m.macro)}</code> → <code>${esc(t.s)}</code>`).join(', ') + (typos.length > 6 ? ` … +${typos.length - 6} more` : '') + '. A misspelled override has no effect.',
+      fix: typos.some(t => !t.m.type) ? { label: typos.length === 1 ? `Move value to ${typos[0].s}` : `Move ${typos.filter(t => !t.m.type).length} values`, fn: () => typos.filter(t => !t.m.type).forEach(t => { setMacro(h, t.s, t.m.value); delMacro(h, t.m.macro); }) } : null });
+    if (h.status === 1 && i.cl.length) add('info', 'disabled', `${nm} is disabled`, { host: h, detail: 'Disabled hosts send no data, so they add nothing to the totals.' });
+  }
+  // client-level
+  for (const c of M.clients) {
+    const cls = M.scoped.filter(i => i.isCluster && i.client === c);
+    const members = M.scoped.filter(i => !i.isCluster && i.cl.includes(c));
+    if (!cls.length) add('warn', 'no-cluster', `Client ${c} has no cluster host`, { client: c, detail: `${members.length} host(s), but nothing with "${esc(CFG.clusterTemplate)}" and ${esc(CFG.grpMacro)}=${esc(c)}, so there's no requested-vs-allocated tracking.` });
+    if (cls.length > 1) add('warn', 'multi-cluster', `Client ${c} has ${cls.length} cluster hosts`, { client: c, detail: cls.map(x => esc(x.h.name)).join(', ') + ' all total the same hosts.' });
+    if (cls.length === 1) for (const r of CFG.roles.filter(r => r.agg && r.count)) {
+      const req = parseFloat(mval(cls[0].c, r.count)); const have = members.filter(i => i.roles.includes(r)).length;
+      if (!isNaN(req) && req !== have) add('info', 'count-drift', `${c}: ${r.label} has ${have} host(s) but ${req} requested`, { client: c, detail: `${esc(r.count)} on ${esc(cls[0].h.name)}.` });
+    }
+  }
+  return out;
+}
+
+/* ========================= pending → operations ========================= */
+function hostOps(h) {
+  const p = P.hosts.get(h.id); if (!p) return [];
+  const ops = [];
+  const og = new Set(h.groups), ng = p.groups;
+  const add = [...ng].filter(g => !og.has(g)), rem = [...og].filter(g => !ng.has(g));
+  if (add.length || rem.length) ops.push({ kind: 'groups', add, rem, groups: [...ng] });
+  const ot = new Set(h.templates);
+  const link = [...p.templates].filter(t => !ot.has(t)), unlink = [...ot].filter(t => !p.templates.has(t));
+  if (link.length) ops.push({ kind: 'link', ids: link });
+  if (unlink.length) ops.push({ kind: 'unlink', ids: unlink });
+  const om = new Map(h.macros.map(m => [m.macro, m]));
+  for (const [k, m] of p.macros) {
+    const o = om.get(k);
+    if (m.del) { if (o) ops.push({ kind: 'mdel', macro: k, id: o.id, before: o }); continue; }
+    if (!o) ops.push({ kind: 'mcreate', macro: k, value: m.value, type: m.type, description: m.description });
+    else if (m.type !== o.type || (m.touched && m.value !== o.value) || (o.type !== 1 && m.value !== o.value) || m.description !== o.description)
+      ops.push({ kind: 'mupdate', macro: k, id: o.id, value: m.value, type: m.type, description: m.description, before: o, sendValue: o.type !== 1 || m.touched });
+  }
+  for (const [k] of om) if (!p.macros.has(k)) ops.push({ kind: 'mdel', macro: k, id: om.get(k).id, before: om.get(k) });
+  return ops;
+}
+function allOps() { const out = []; D.hosts.forEach(h => { const o = hostOps(h); if (o.length) out.push({ h, ops: o }); }); return out; }
+
+const PACE_MS = 200, CHUNK = 50;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+const push = (m, k, v) => (m.get(k) || m.set(k, []).get(k)).push(v);
+/* Turn per-host operations into as few API calls as possible:
+   one call per group / template touched, and macro changes in arrays of up to CHUNK. */
+function buildCalls(plan, rg) {
+  const gAdd = new Map(), gRem = new Map(), tAdd = new Map(), tRem = new Map(), mc = [], mu = [], md = [];
+  for (const { h, ops } of plan) for (const o of ops) {
+    if (o.kind === 'groups') { o.add.forEach(g => push(gAdd, g, { h, o })); o.rem.forEach(g => push(gRem, g, { h, o })); }
+    if (o.kind === 'link') o.ids.forEach(t => push(tAdd, t, { h, o }));
+    if (o.kind === 'unlink') o.ids.forEach(t => push(tRem, t, { h, o }));
+    if (o.kind === 'mcreate') mc.push({ h, o }); if (o.kind === 'mupdate') mu.push({ h, o }); if (o.kind === 'mdel') md.push({ h, o });
+  }
+  const calls = [];
+  for (const [g, list] of gAdd) for (const part of chunk(list, 100)) calls.push({ method: 'hostgroup.massadd', items: part.map(x => Object.assign(x, { text: '+group ' + gName(g) })),
+    params: its => { const id = rg(g); if (id.startsWith('new:')) throw new Error('group was not created'); return { groups: [{ groupid: id }], hosts: its.map(x => ({ hostid: x.h.id })) }; },
+    demo: its => its.forEach(x => { x.h.groups = [...new Set([...x.h.groups, rg(g)])]; }) });
+  for (const [g, list] of gRem) for (const part of chunk(list, 100)) calls.push({ method: 'hostgroup.massremove', items: part.map(x => Object.assign({}, x, { text: '−group ' + gName(g) })),
+    params: its => ({ groupids: [g], hostids: its.map(x => x.h.id) }), demo: its => its.forEach(x => { x.h.groups = x.h.groups.filter(y => y !== g); }) });
+  for (const [t, list] of tAdd) for (const part of chunk(list, 100)) calls.push({ method: 'host.massadd', items: part.map(x => Object.assign({}, x, { text: 'link ' + tName(t) })),
+    params: its => ({ hosts: its.map(x => ({ hostid: x.h.id })), templates: [{ templateid: t }] }), demo: its => its.forEach(x => { x.h.templates = [...new Set([...x.h.templates, t])]; }) });
+  for (const [t, list] of tRem) for (const part of chunk(list, 100)) calls.push({ method: 'host.massremove', items: part.map(x => Object.assign({}, x, { text: 'unlink ' + tName(t) })),
+    params: its => ({ hostids: its.map(x => x.h.id), templateids: [t] }), demo: its => its.forEach(x => { x.h.templates = x.h.templates.filter(y => y !== t); }) });
+  for (const part of chunk(mc, CHUNK)) calls.push({ method: 'usermacro.create', items: part.map(x => Object.assign(x, { text: opText(x.o, true) })),
+    params: its => its.map(({ h, o }) => ({ hostid: h.id, macro: o.macro, value: o.value, type: o.type, description: o.description })),
+    demo: its => its.forEach(({ h, o }) => h.macros.push({ id: 'd' + (++rid), macro: o.macro, value: o.value, type: o.type, description: o.description })) });
+  for (const part of chunk(mu, CHUNK)) calls.push({ method: 'usermacro.update', items: part.map(x => Object.assign(x, { text: opText(x.o, true) })),
+    params: its => its.map(({ o }) => { const q = { hostmacroid: o.id, type: o.type, description: o.description }; if (o.sendValue) q.value = o.value; return q; }),
+    demo: its => its.forEach(({ h, o }) => { h.macros = h.macros.map(m => m.id === o.id ? Object.assign({}, m, { value: o.value, type: o.type, description: o.description }) : m); }) });
+  for (const part of chunk(md, 100)) calls.push({ method: 'usermacro.delete', items: part.map(x => Object.assign(x, { text: opText(x.o, true) })),
+    params: its => its.map(({ o }) => o.id), demo: its => its.forEach(({ h, o }) => { h.macros = h.macros.filter(m => m.id !== o.id); }) });
+  return calls;
+}
+function planCallCount() {
+  const plan = allOps();
+  const ng = [...P.newGroups].filter(n => plan.some(x => x.ops.some(o => o.kind === 'groups' && o.add.includes('new:' + n)))).length;
+  return { calls: buildCalls(plan.map(x => ({ h: x.h, ops: x.ops.map(o => Object.assign({}, o)) })), id => id).length + ng, ops: plan.reduce((s, x) => s + x.ops.length, 0) };
+}
+async function applyAll(log) {
+  const plan = allOps(); let ok = 0, fail = 0;
+  const created = new Map();
+  for (const name of P.newGroups) {
+    if (!plan.some(x => x.ops.some(o => o.kind === 'groups' && o.add.includes('new:' + name)))) continue;
+    try {
+      const id = D.mode === 'demo' ? String(9000 + created.size) : (await api('hostgroup.create', { name })).groupids[0];
+      created.set('new:' + name, String(id)); D.groups.set(String(id), { id: String(id), name }); D.groupByName.set(name, D.groups.get(String(id)));
+      log(`✓ created host group "${name}"`); ok++;
+    } catch (e) { log(`✗ create group "${name}": ${e.message}`, 'err'); fail++; }
+    if (D.mode !== 'demo') await sleep(PACE_MS);
+  }
+  const rg = id => created.get(id) || id;
+  const exec = async (c, its) => D.mode === 'demo' ? c.demo(its) : api(c.method, c.params(its));
+  const calls = buildCalls(plan, rg);
+  for (const [k, c] of calls.entries()) {
+    try {
+      await exec(c, c.items);
+      log(`✓ [${k + 1}/${calls.length}] ${c.method} (${c.items.length}): ` + c.items.map(x => `${x.h.name} ${x.text}`).join('; ')); ok += c.items.length;
+    } catch (e) {
+      if (c.items.length === 1) { log(`✗ ${c.items[0].h.name} ${c.items[0].text}: ${e.message}`, 'err'); fail++; }
+      else {
+        // Zabbix rolls back the whole call on any error, so retry one by one to find the bad entry.
+        log(`! ${c.method} batch of ${c.items.length} failed (${e.message}), retrying one by one`, 'err');
+        for (const it of c.items) {
+          try { await exec(c, [it]); log(`✓ ${it.h.name} ${it.text}`); ok++; } catch (e2) { log(`✗ ${it.h.name} ${it.text}: ${e2.message}`, 'err'); fail++; }
+          if (D.mode !== 'demo') await sleep(PACE_MS);
+        }
+      }
+    }
+    if (D.mode !== 'demo') await sleep(PACE_MS);
+  }
+  return { ok, fail, calls: calls.length };
+}
+function opText(o, plain) {
+  const T = s => plain ? s : esc(s);
+  if (o.kind === 'groups') return 'groups ' + [...o.add.map(g => '+' + gName(g)), ...o.rem.map(g => '−' + gName(g))].map(T).join(', ');
+  if (o.kind === 'link') return 'link template ' + T(o.ids.map(tName).join(', '));
+  if (o.kind === 'unlink') return 'unlink template (data kept) ' + T(o.ids.map(tName).join(', '));
+  const v = (val, type) => type === 1 ? '••••' : (val === '' ? '(empty)' : val);
+  if (o.kind === 'mcreate') return `${T(o.macro)} = ${T(v(o.value, o.type))}`;
+  if (o.kind === 'mupdate') return `${T(o.macro)}: ${T(v(o.before.value, o.before.type))} → ${T(v(o.value, o.type))}`;
+  if (o.kind === 'mdel') return `delete ${T(o.macro)}`;
+}
+
+/* ========================= rendering: shell ========================= */
+let M = null;
+function changed(opts = {}) {
+  M = model(); ISSUES = computeIssues(M);
+  const e = ISSUES.filter(i => i.sev === 'err').length, w = ISSUES.filter(i => i.sev === 'warn').length, ops = allOps().reduce((s, x) => s + x.ops.length, 0);
+  $('#stats').innerHTML = `<span class="stat"><b>${M.scoped.length}</b> hosts</span><span class="stat"><b>${M.clients.size}</b> clients</span><span class="stat err"><b>${e}</b> errors</span><span class="stat warn"><b>${w}</b> warnings</span>`;
+  $('#cHosts').textContent = M.scoped.length;
+  const ci = $('#cIssues'); ci.textContent = e + w; ci.className = 'count' + (e ? ' err' : '');
+  const co = $('#cOps'); co.textContent = ops; co.className = 'count' + (ops ? ' mod' : '');
+  const rb = $('#btnReview'); rb.textContent = ops ? `Review & apply (${ops})` : 'Review & apply'; rb.disabled = !ops;
+  if (!opts.quiet) renderTab();
+  if (opts.drawer !== false && $('#drawerRoot').dataset.host) openDrawer($('#drawerRoot').dataset.host, true);
+}
+function showTab(t) {
+  UI.tab = t;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+  ['connect', 'topo', 'hosts', 'macros', 'issues', 'review', 'settings'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
+  renderTab();
+}
+function renderTab() { ({ topo: renderTopo, hosts: renderHosts, macros: renderMacros, issues: renderIssues, review: renderReview, settings: renderSettings }[UI.tab] || (() => {}))(); }
+const hostSev = id => { const l = ISSUES.filter(i => i.host && i.host.id === id); return l.some(i => i.sev === 'err') ? 'err' : l.some(i => i.sev === 'warn') ? 'warn' : ''; };
+
+/* ========================= topology ========================= */
+function renderTopo() {
+  const clients = [...M.clients].sort((a, b) => a.localeCompare(b));
+  const unassigned = M.scoped.filter(i => !i.isCluster && !i.cl.length);
+  const clientErr = c => ISSUES.filter(i => i.sev !== 'info' && (i.client === c || (i.host && M.byId.get(i.host.id).cl.includes(c)))).length;
+  let s = `<h4>Clients</h4><button class="fbtn${!UI.client ? ' on' : ''}" data-c=""><span>All clients</span><span class="n">${clients.length}</span></button>`;
+  s += clients.map(c => { const n = clientErr(c); return `<button class="fbtn${UI.client === c ? ' on' : ''}" data-c="${esc(c)}"><span>${esc(c)}</span><span class="n${n ? ' err' : ''}">${n ? n + ' ⚠' : M.scoped.filter(i => i.cl.includes(c)).length}</span></button>`; }).join('');
+  s += `<button class="fbtn${UI.client === '\u0000' ? ' on' : ''}" data-c="\u0000"><span>Unassigned hosts</span><span class="n${unassigned.length ? ' err' : ''}">${unassigned.length}</span></button>`;
+  s += `<h4>Actions</h4><button class="btn sm" id="newClient" style="width:100%">+ New client group</button>`;
+  $('#topoSide').innerHTML = s;
+  const list = UI.client === '\u0000' ? [] : UI.client ? [UI.client] : clients;
+  let h = list.map(c => flowHtml(c)).join('');
+  if (!UI.client || UI.client === '\u0000') h += unassignedHtml(unassigned);
+  $('#topo').innerHTML = h || '<div class="card pad hint">No clients found. Mark client groups in Settings, or create one with “+ New client group”.</div>';
+  requestAnimationFrame(drawEdges);
+}
+function sizeLine(label, alloc, req, unit) {
+  if (req === undefined || req === '' || req == null) return `<span>${label}</span><span>${alloc == null ? '—' : fmt(alloc) + unit} <span class="hint">/ not set</span></span>`;
+  const r = parseFloat(req); const cls = alloc == null ? '' : alloc > r ? 'over' : alloc < r ? 'under' : 'okv';
+  return `<span>${label}</span><span class="${cls}">${alloc == null ? '—' : fmt(alloc) + unit} / ${esc(req)}${unit}</span>`;
+}
+const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(1);
+function flowHtml(c) {
+  const cls = M.scoped.filter(i => i.isCluster && i.client === c);
+  const wrongCls = M.scoped.filter(i => i.isCluster && i.cl.includes(c) && i.client !== c);
+  const mem = M.scoped.filter(i => !i.isCluster && i.cl.includes(c));
+  const cl = cls[0];
+  const roles = CFG.roles.filter(r => mem.some(i => i.roles.includes(r)) || (cl && r.agg && r.count && mval(cl.c, r.count)));
+  const noRole = mem.filter(i => !i.roles.length);
+  const id = 'f' + btoa(unescape(encodeURIComponent(c))).replace(/[^a-z0-9]/gi, '');
+  let h = `<div class="flow" data-flow="${id}"><svg class="edges"></svg>`;
+  h += `<div class="col"><div class="node client" data-n="client"><div class="k">Client group</div><div class="nm">${esc(c)}</div><div class="sub">${mem.length} hosts${D.groupByName.has(c) ? '' : ' · <span class="b mod">new</span>'}</div></div></div>`;
+  h += '<div class="col">';
+  if (cls.length) h += cls.map((x, k) => `<div class="node cluster${hostSev(x.h.id) === 'err' ? ' bad' : hostSev(x.h.id) === 'warn' ? ' warnb' : ''}" data-n="cluster${k}" data-map="${x.grp === c ? 'ok' : 'bad'}" data-host="${x.h.id}"><div class="k">Cluster host</div><div class="nm">${esc(x.h.name)}${x.c.pending ? ' <span class="dot" style="background:var(--mod)"></span>' : ''}</div><div class="sub mono">${esc(CFG.grpMacro)} = ${esc(x.grp || '∅')}</div></div>`).join('');
+  else h += `<div class="node ghost warnb" data-n="cluster0"><div class="k">Cluster host</div><div class="nm">none</div><div class="sub">No requested-vs-allocated tracking</div></div>`;
+  h += wrongCls.map(x => `<div class="node cluster bad" data-n="wrong" data-host="${x.h.id}"><div class="k">Cluster host · mis-mapped</div><div class="nm">${esc(x.h.name)}</div><div class="sub mono" style="color:var(--err)">${esc(CFG.grpMacro)} = ${esc(x.grp || '∅')}</div></div>`).join('');
+  h += '</div><div class="roles">';
+  for (const r of roles) {
+    const ms = mem.filter(i => i.roles.includes(r));
+    const met = ms.map(i => D.metrics.get(i.h.id) || {});
+    const sum = k => met.some(m => m[k] != null) ? met.reduce((s, m) => s + (m[k] || 0), 0) : null;
+    const cpu = sum('system.cpu.num'), memGB = sum('vm.memory.size[total]'), disk = sum('vfs.fs.dependent.size[/,total]');
+    const rv = k => cl && r[k] ? (mval(cl.c, r[k]) ?? (inherited(cl.c, r[k]) || {}).value) : undefined;
+    h += `<div class="rrow"><div class="node role${ms.length ? '' : ' ghost'}" data-n="role-${r.key}"><div class="nm"><span>${esc(r.label)}</span><span class="b ${r.agg ? 'mute' : 'info'}" title="${r.agg ? 'Aggregated by the cluster template' : 'Not aggregated by the cluster template'}">${esc(r.group)}</span></div>
+      <div class="size">${r.count ? sizeLine('Servers', ms.length, rv('count'), '') : `<span>Servers</span><span>${ms.length}</span>`}${sizeLine('CPU', cpu, rv('cpu'), '')}${sizeLine('Memory', memGB == null ? null : memGB / 1073741824, rv('mem'), ' GB')}${r.disk ? sizeLine('Root disk', disk == null ? null : disk / 1073741824, rv('disk'), ' GB') : ''}</div></div>
+      <div class="chips" data-n="hosts-${r.key}">${ms.map(chipHtml).join('') || '<span class="hint">no hosts</span>'}</div></div>`;
+  }
+  if (noRole.length) h += `<div class="rrow"><div class="node role ghost warnb" data-n="role-none"><div class="nm"><span>No role group</span></div><div class="sub">Not counted in any role total</div></div><div class="chips" data-n="hosts-none">${noRole.map(chipHtml).join('')}</div></div>`;
+  if (!roles.length && !noRole.length) h += '<div class="hint">No member hosts yet. Use the Hosts tab to assign hosts to this client.</div>';
+  return h + '</div></div>';
+}
+function chipHtml(i) {
+  const sv = hostSev(i.h.id);
+  return `<span class="chip ${sv}${i.h.status === 1 ? ' off' : ''}" data-host="${i.h.id}" title="${esc(i.h.host)}${i.h.ip ? ' · ' + esc(i.h.ip) : ''}">${i.c.pending ? '<span class="pm"></span>' : ''}${esc(i.h.name)}${i.h.ip ? `<span class="ip">${esc(i.h.ip)}</span>` : ''}</span>`;
+}
+function unassignedHtml(list) {
+  if (!list.length) return '';
+  return `<div class="card pad" style="margin-bottom:16px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Unassigned hosts</b><span class="hint">Linked to a managed template, or in a role group, but in no client group. Click a host to assign it, or select several in the Hosts tab.</span></div>
+    <div class="chips" style="margin-top:10px;border:0">${list.map(chipHtml).join('')}</div></div>`;
+}
+function drawEdges() {
+  document.querySelectorAll('.flow').forEach(f => {
+    const svg = f.querySelector('svg.edges'); const fr = f.getBoundingClientRect();
+    const pt = (el, side) => { const r = el.getBoundingClientRect(); return [side === 'r' ? r.right - fr.left : r.left - fr.left, r.top - fr.top + r.height / 2]; };
+    const n = k => f.querySelector(`[data-n="${k}"]`);
+    let p = '';
+    const edge = (a, b, cls) => { if (!a || !b) return; const [x1, y1] = pt(a, 'r'), [x2, y2] = pt(b, 'l'); if (x2 <= x1) return; const mx = (x1 + x2) / 2;
+      const col = cls === 'e' ? 'var(--err)' : cls === 'w' ? 'var(--warn)' : 'var(--edge)';
+      p += `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="${col}" stroke-width="2" ${cls ? 'stroke-dasharray="5 4"' : ''}/>`; };
+    const client = n('client');
+    const clusters = [...f.querySelectorAll('[data-n^="cluster"]')];
+    clusters.forEach(c => edge(client, c, c.classList.contains('ghost') ? 'w' : c.dataset.map === 'bad' ? 'e' : ''));
+    f.querySelectorAll('[data-n="wrong"]').forEach(c => edge(client, c, 'e'));
+    const src = clusters[0] && !clusters[0].classList.contains('ghost') ? clusters[0] : client;
+    f.querySelectorAll('[data-n^="role-"]').forEach(r => {
+      const key = r.dataset.n.slice(5);
+      const role = CFG.roles.find(x => x.key === key);
+      edge(src, r, key === 'none' ? 'w' : src === client ? 'w' : role && !role.agg ? 'w' : '');
+      edge(r, n('hosts-' + key), '');
+    });
+    svg.innerHTML = p;
+  });
+}
+window.addEventListener('resize', () => UI.tab === 'topo' && drawEdges());
+$('#topoSide').addEventListener('click', e => {
+  const b = e.target.closest('.fbtn'); if (b) { UI.client = b.dataset.c || null; renderTopo(); return; }
+  if (e.target.id === 'newClient') newClientDialog();
+});
+$('#topo').addEventListener('click', e => { const t = e.target.closest('[data-host]'); if (t) openDrawer(t.dataset.host); });
+
+function newClientDialog(after) {
+  modal('New client group', `<label class="f">Client name (becomes the host group name, and the value of ${esc(CFG.grpMacro)} / ${esc(CFG.clientMacro)})</label><input type="text" id="ncName" placeholder="e.g. ACME">`, bg => {
+    const n = bg.querySelector('#ncName').value.trim(); if (!n) return false;
+    if (roleByGroup(n)) { toast('That name is a role group'); return false; }
+    if (!D.groupByName.has(n)) P.newGroups.add(n);
+    if (!CFG.clientGroups.includes(n)) { CFG.clientGroups.push(n); saveCfg(); }
+    changed(); toast(D.groupByName.has(n) ? `Marked existing group "${n}" as a client` : `Group "${n}" will be created on Apply`); if (after) after(n);
+  });
+}
+
+/* ========================= drawer (single host) ========================= */
+function openDrawer(id, keep) {
+  const h = D.hostById.get(id); if (!h) return;
+  const root = $('#drawerRoot'); root.dataset.host = id;
+  const i = M.byId.get(id), c = i.c;
+  const iss = ISSUES.filter(x => x.host && x.host.id === id);
+  const clients = [...M.clients].sort();
+  const known = [...knownMacros(c)].sort();
+  const rows = new Map();
+  c.macros.forEach(m => rows.set(m.macro, { host: m }));
+  const imp = [CFG.clientMacro, CFG.roleMacro, ...(i.isCluster ? [CFG.grpMacro, ...CFG.roles.flatMap(r => [r.count, r.cpu, r.mem, r.disk]).filter(Boolean)] : [])];
+  imp.forEach(mc => { if (!rows.has(mc) && (known.has ? known.has(mc) : known.includes(mc))) rows.set(mc, {}); });
+  const deleted = P.hosts.has(id) ? [...P.hosts.get(id).macros.values()].filter(m => m.del) : [];
+  const expTpl = [...new Set(i.roles.flatMap(r => r.templates).concat(i.isCluster ? [CFG.clusterTemplate] : []))].filter(n => D.tplByName.has(n));
+  let html = `<div class="drawer-bg" data-close></div><div class="drawer" role="dialog" aria-label="Host ${esc(h.name)}">
+    <header><div style="flex:1"><div class="k hint">${i.isCluster ? 'Cluster host' : 'Host'}${h.status === 1 ? ' · <span class="b mute">disabled</span>' : ''}</div><h3>${esc(h.name)}</h3><div class="tech">${esc(h.host)}${h.ip ? ' · ' + esc(h.ip) : ''}</div></div>
+    ${c.pending ? '<button class="btn sm" data-revert>Revert host</button>' : ''}<button class="btn sm ghost" data-close aria-label="Close">✕</button></header>`;
+  if (iss.length) html += `<section><h5>Checks</h5>${iss.map(x => `<div class="msg ${x.sev}">● ${esc(x.title)} ${x.fix ? `<button class="btn sm" data-fix="${ISSUES.indexOf(x)}">${esc(x.fix.label)}</button>` : ''}</div>`).join('')}</section>`;
+  html += `<section><h5>Client &amp; role</h5><div class="kv">
+    <label>Client</label><select id="dClient"><option value="">— none —</option>${clients.map(n => `<option${i.cl.includes(n) || (!i.cl.length && i.client === n) ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="\u0001">+ New client…</option></select>
+    ${i.isCluster ? `<label>Role</label><span class="hint">Cluster host. It totals the client's role groups through ${esc(CFG.grpMacro)}.</span>` :
+      `<label>Role</label><select id="dRole"><option value="">— none —</option>${CFG.roles.map(r => `<option value="${r.key}"${i.roles[0] === r ? ' selected' : ''}>${esc(r.label)} (${esc(r.group)})</option>`).join('')}</select>`}
+    <label>Groups</label><span>${i.names.map(n => `<span class="tchip">${esc(n)}</span>`).join('')}</span></div>
+    <p class="hint" style="margin:8px 0 0">Changing the client or role updates the host groups${CFG.syncClientMacro ? ` and ${i.isCluster ? esc(CFG.grpMacro) : esc(CFG.clientMacro) + ' / ' + esc(CFG.roleMacro)}` : ''} together.</p></section>`;
+  html += `<section><h5>Templates</h5>${c.templates.map(t => `<span class="tchip">${esc(tName(t))} <button class="eye btn ghost sm" data-unlink="${t}" title="Unlink (keeps collected data)" style="padding:0 3px">×</button></span>`).join('') || '<span class="hint">none</span>'}
+    ${expTpl.filter(n => !c.templates.includes(D.tplByName.get(n).id)).map(n => `<span class="tchip miss" data-link="${D.tplByName.get(n).id}" title="Expected for this role. Click to link.">+ ${esc(n)}</span>`).join('')}</section>`;
+  html += `<section><h5>Host macros</h5><table class="mac"><tbody>`;
+  for (const [mc, r] of [...rows].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const inh = inherited(c, mc), hm = r.host;
+    const orig = h.macros.find(x => x.macro === mc);
+    const chg = hm && (!orig || orig.value !== hm.value || orig.type !== hm.type || hm.touched);
+    html += `<tr class="${hm ? '' : 'inh'}"><td class="m">${esc(mc)}</td><td style="width:50%"><input data-mv="${esc(mc)}" class="${chg ? 'changed' : ''}" type="${hm && hm.type === 1 ? 'password' : 'text'}" value="${hm ? esc(hm.type === 1 && !hm.touched ? '' : hm.value) : ''}"
+      placeholder="${hm && hm.type === 1 ? '•••• (secret, unchanged)' : inh ? esc(inh.value || '(empty in template)') : '(not set)'}" spellcheck="false"></td>
+      <td style="width:28px">${hm ? `<button class="btn ghost sm" data-mdel="${esc(mc)}" title="Remove the host override and inherit from the template">×</button>` : ''}</td></tr>`;
+  }
+  deleted.forEach(m => html += `<tr class="del"><td class="m">${esc(m.macro)}</td><td>${esc(m.type === 1 ? '••••' : m.value)}</td><td><button class="btn ghost sm" data-undel="${esc(m.macro)}" title="Undo">↺</button></td></tr>`);
+  html += `</tbody></table><div style="display:flex;gap:6px;margin-top:8px"><input id="dNewM" list="dKnown" placeholder="{$MACRO}" style="flex:1;padding:5px 8px;border:1px solid var(--border-strong);border-radius:6px;background:var(--panel);font-family:var(--mono);font-size:12px">
+    <datalist id="dKnown">${known.map(k => `<option value="${esc(k)}">`).join('')}</datalist><button class="btn sm" id="dAddM">Add override</button></div></section>`;
+  html += '</div>';
+  const scroll = keep && root.querySelector('.drawer') ? root.querySelector('.drawer').scrollTop : 0;
+  const focusM = keep && document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.mv : null;
+  root.innerHTML = html;
+  root.querySelector('.drawer').scrollTop = scroll;
+  if (focusM) { const el = root.querySelector(`[data-mv="${CSS.escape(focusM)}"]`); if (el) { el.focus(); const v = el.value; el.value = ''; el.value = v; } }
+}
+function closeDrawer() { const r = $('#drawerRoot'); r.innerHTML = ''; delete r.dataset.host; }
+function assignClient(h, name) {
+  const i = M.byId.get(h.id);
+  setGroups(h, g => { [...g].forEach(id => { if (M.clients.has(gName(id))) g.delete(id); }); if (name) g.add(gId(name)); });
+  if (name && CFG.syncClientMacro) setMacro(h, i.isCluster ? CFG.grpMacro : CFG.clientMacro, name);
+}
+function assignRole(h, key) {
+  const r = CFG.roles.find(x => x.key === key);
+  setGroups(h, g => { [...g].forEach(id => { if (roleByGroup(gName(id))) g.delete(id); }); if (r) g.add(gId(r.group)); });
+  if (r) { setMacro(h, CFG.roleMacro, r.value); const p = edit(h); r.templates.forEach(n => D.tplByName.has(n) && p.templates.add(D.tplByName.get(n).id)); prune(h); }
+}
+$('#drawerRoot').addEventListener('click', e => {
+  const id = $('#drawerRoot').dataset.host, h = D.hostById.get(id); if (!h) return;
+  const t = e.target;
+  if (t.closest('[data-close]')) return closeDrawer();
+  if (t.closest('[data-revert]')) { P.hosts.delete(id); return changed(); }
+  if (t.dataset.fix) { ISSUES[+t.dataset.fix].fix.fn(); return changed(); }
+  if (t.dataset.unlink) { const p = edit(h); p.templates.delete(t.dataset.unlink); prune(h); return changed(); }
+  const lk = t.closest('[data-link]'); if (lk) { const p = edit(h); p.templates.add(lk.dataset.link); prune(h); return changed(); }
+  if (t.dataset.mdel) { delMacro(h, t.dataset.mdel); return changed(); }
+  if (t.dataset.undel) { const p = edit(h); p.macros.get(t.dataset.undel).del = false; prune(h); return changed(); }
+  if (t.id === 'dAddM') { let m = $('#dNewM').value.trim().toUpperCase(); if (!m) return; if (!/^\{\$/.test(m)) m = '{$' + m.replace(/^\$/, '') + '}';
+    if (!/^\{\$[A-Z0-9_.]+(:.*)?\}$/.test(m)) return toast('Invalid macro name'); const inh = inherited(M.byId.get(id).c, m); setMacro(h, m, inh ? inh.value : ''); changed(); }
+});
+$('#drawerRoot').addEventListener('change', e => {
+  const id = $('#drawerRoot').dataset.host, h = D.hostById.get(id); if (!h) return;
+  if (e.target.id === 'dClient') { if (e.target.value === '\u0001') return newClientDialog(n => { assignClient(h, n); changed(); }); assignClient(h, e.target.value); changed(); }
+  if (e.target.id === 'dRole') { assignRole(h, e.target.value); changed(); }
+});
+let dT;
+$('#drawerRoot').addEventListener('input', e => {
+  const mc = e.target.dataset.mv; if (!mc) return;
+  const id = $('#drawerRoot').dataset.host, h = D.hostById.get(id);
+  const hm = cur(h).macros.find(m => m.macro === mc);
+  if (e.target.value === '' && !(hm && hm.type === 1)) delMacro(h, mc); else setMacro(h, mc, e.target.value);
+  clearTimeout(dT); dT = setTimeout(() => changed(), 350);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#drawerRoot').dataset.host && !document.querySelector('.modal-bg')) closeDrawer(); });
+
+/* ========================= hosts grid ========================= */
+function fillFilters() {
+  const cs = [...M.clients].sort();
+  const opt = (sel, first, list) => { const v = sel.value; sel.innerHTML = `<option value="">${first}</option>` + list.map(([k, l]) => `<option value="${esc(k)}">${esc(l)}</option>`).join(''); sel.value = v; };
+  opt($('#hClient'), 'All clients', [...cs.map(c => [c, c]), ['\u0000', '— no client —']]);
+  opt($('#hRole'), 'All roles', [...CFG.roles.map(r => [r.key, r.label]), ['cluster', 'Cluster hosts'], ['\u0000', '— no role —']]);
+  opt($('#mClient'), 'All clients', cs.map(c => [c, c]));
+  opt($('#mRole'), 'All roles', [...CFG.roles.map(r => [r.key, r.label]), ['cluster', 'Cluster hosts']]);
+}
+function hostRows() {
+  const q = $('#hSearch').value.toLowerCase(), fc = $('#hClient').value, fr = $('#hRole').value, fs = $('#hState').value;
+  return ($('#hAll').checked ? M.infos : M.scoped).filter(i =>
+    (!q || [i.h.name, i.h.host, i.h.ip, ...i.names].join(' ').toLowerCase().includes(q)) &&
+    (!fc || (fc === '\u0000' ? !i.cl.length && !i.client : i.cl.includes(fc) || i.client === fc)) &&
+    (!fr || (fr === 'cluster' ? i.isCluster : fr === '\u0000' ? !i.roles.length && !i.isCluster : i.roles.some(r => r.key === fr))) &&
+    (!fs || (fs === 'issues' ? hostSev(i.h.id) : fs === 'unassigned' ? !i.cl.length && !i.isCluster : fs === 'changed' ? i.c.pending : true))
+  ).sort((a, b) => (a.client || '￿').localeCompare(b.client || '￿') || a.h.name.localeCompare(b.h.name));
+}
+function renderHosts() {
+  fillFilters();
+  const rows = hostRows(), cs = [...M.clients].sort();
+  let h = `<thead><tr><th style="width:28px"><input type="checkbox" id="hSelAll"></th><th>Host</th><th>Client</th><th>Role</th><th>Templates</th><th>${esc(CFG.clientMacro)}</th><th>${esc(CFG.roleMacro)} / ${esc(CFG.grpMacro)}</th><th>Checks</th></tr></thead><tbody>`;
+  for (const i of rows) {
+    const iss = ISSUES.filter(x => x.host && x.host.id === i.h.id);
+    const e = iss.filter(x => x.sev === 'err').length, w = iss.filter(x => x.sev === 'warn').length;
+    const exp = [...new Set(i.roles.flatMap(r => r.templates))].filter(n => D.tplByName.has(n) && !i.c.templates.includes(D.tplByName.get(n).id));
+    const cm = i.clientMacro, rm = i.isCluster ? i.grp : i.roleMacro;
+    const cmOk = !i.cl.length || cm === i.cl[0], rmOk = i.isCluster ? i.grp === i.client && !!i.grp : !i.roles.length || rm === i.roles[0].value;
+    h += `<tr class="${UI.sel.has(i.h.id) ? 'sel' : ''}${i.c.pending ? ' chg' : ''}" data-id="${i.h.id}">
+      <td><input type="checkbox" class="rs" ${UI.sel.has(i.h.id) ? 'checked' : ''}></td>
+      <td><span class="hn" data-open>${esc(i.h.name)}</span>${i.h.status === 1 ? ' <span class="b mute">disabled</span>' : ''}<div class="tech">${esc(i.h.host !== i.h.name ? i.h.host + ' · ' : '')}${esc(i.h.ip)}</div></td>
+      <td><select class="cc${i.cl.length > 1 ? ' badcell' : ''}"><option value="">—</option>${cs.map(c => `<option${(i.cl.includes(c) || (!i.cl.length && i.client === c)) ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>${i.cl.length > 1 ? `<div class="hint" style="color:var(--err)">${esc(i.cl.join(' + '))}</div>` : ''}</td>
+      <td>${i.isCluster ? '<span class="b info">cluster</span>' : `<select class="rr${i.roles.length > 1 ? ' badcell' : ''}"><option value="">—</option>${CFG.roles.map(r => `<option value="${r.key}"${i.roles[0] === r ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}</select>`}</td>
+      <td>${i.c.templates.filter(t => managedTplIds().has(t)).map(t => `<span class="tchip">${esc(tName(t).replace(/ by .*SISA$| -SISA$/, ''))}</span>`).join('')}${exp.map(n => `<span class="tchip miss" data-link="${D.tplByName.get(n).id}" title="Missing ${esc(n)}. Click to link.">+ ${esc(n.replace(/ by .*SISA$| -SISA$/, ''))}</span>`).join('')}</td>
+      <td class="mono" style="color:${cmOk ? 'inherit' : 'var(--err)'}">${i.isCluster ? '<span class="hint">—</span>' : esc(cm ?? '∅')}</td>
+      <td class="mono" style="color:${rmOk ? 'inherit' : 'var(--err)'}">${esc(rm ?? '∅')}</td>
+      <td>${e ? `<span class="b err">${e} error${e > 1 ? 's' : ''}</span> ` : ''}${w ? `<span class="b warn">${w} warn</span> ` : ''}${i.c.pending ? '<span class="b mod">edited</span>' : ''}${!e && !w && !i.c.pending ? '<span class="b ok">ok</span>' : ''}</td></tr>`;
+  }
+  $('#hTable').innerHTML = h + (rows.length ? '' : '<tr><td colspan="8" class="hint" style="padding:30px;text-align:center">No hosts match.</td></tr>') + '</tbody>';
+  $('#hSelAll').checked = rows.length && rows.every(i => UI.sel.has(i.h.id));
+  $('#hBulk').classList.toggle('hidden', !UI.sel.size); $('#hSelN').textContent = UI.sel.size + ' selected';
+}
+['#hSearch', '#hClient', '#hRole', '#hState', '#hAll'].forEach(s => $(s).addEventListener(s === '#hSearch' ? 'input' : 'change', renderHosts));
+$('#hTable').addEventListener('change', e => {
+  if (e.target.id === 'hSelAll') { hostRows().forEach(i => e.target.checked ? UI.sel.add(i.h.id) : UI.sel.delete(i.h.id)); return renderHosts(); }
+  const tr = e.target.closest('tr[data-id]'); if (!tr) return; const h = D.hostById.get(tr.dataset.id);
+  if (e.target.classList.contains('rs')) { e.target.checked ? UI.sel.add(h.id) : UI.sel.delete(h.id); return renderHosts(); }
+  if (e.target.classList.contains('cc')) { assignClient(h, e.target.value); changed(); }
+  if (e.target.classList.contains('rr')) { assignRole(h, e.target.value); changed(); }
+});
+$('#hTable').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+  if (e.target.closest('[data-open]')) openDrawer(tr.dataset.id);
+  const lk = e.target.closest('[data-link]'); if (lk) { const h = D.hostById.get(tr.dataset.id), p = edit(h); p.templates.add(lk.dataset.link); prune(h); changed(); }
+});
+$('#hBulk').addEventListener('click', e => {
+  const b = e.target.dataset.b; if (!b) return;
+  const hs = [...UI.sel].map(id => D.hostById.get(id));
+  const done = n => { changed(); toast(`${n} host(s) updated`); };
+  if (b === 'none') { UI.sel.clear(); return renderHosts(); }
+  if (b === 'revert') { hs.forEach(h => P.hosts.delete(h.id)); return done(hs.length); }
+  if (b === 'client') modal(`Set client for ${hs.length} host(s)`, `<label class="f">Client</label><select id="bc"><option value="">— remove from client —</option>${[...M.clients].sort().map(c => `<option>${esc(c)}</option>`).join('')}</select>`,
+    bg => { const v = bg.querySelector('#bc').value; hs.forEach(h => assignClient(h, v)); done(hs.length); });
+  if (b === 'role') modal(`Set role for ${hs.length} host(s)`, `<label class="f">Role. This also sets ${esc(CFG.roleMacro)} and links the role's templates.</label><select id="br"><option value="">— remove role —</option>${CFG.roles.map(r => `<option value="${r.key}">${esc(r.label)} (${esc(r.group)})</option>`).join('')}</select><p class="hint">Cluster hosts are skipped.</p>`,
+    bg => { const v = bg.querySelector('#br').value; const t = hs.filter(h => !M.byId.get(h.id).isCluster); t.forEach(h => assignRole(h, v)); done(t.length); });
+  if (b === 'tpl') { let n = 0; hs.forEach(h => { const i = M.byId.get(h.id); const ids = i.roles.flatMap(r => r.templates).map(x => D.tplByName.get(x)).filter(Boolean).map(t => t.id).filter(t => !i.c.templates.includes(t)); if (ids.length) { const p = edit(h); ids.forEach(t => p.templates.add(t)); prune(h); n++; } }); done(n); }
+  if (b === 'sync') { let n = 0; hs.forEach(h => { const i = M.byId.get(h.id); if (i.isCluster) { if (i.cl.length === 1 && i.grp !== i.cl[0]) { setMacro(h, CFG.grpMacro, i.cl[0]); n++; } return; }
+      if (i.cl.length === 1 && i.clientMacro !== i.cl[0]) { setMacro(h, CFG.clientMacro, i.cl[0]); n++; } if (i.roles.length === 1 && i.roleMacro !== i.roles[0].value) { setMacro(h, CFG.roleMacro, i.roles[0].value); n++; } }); done(n); }
+  if (b === 'macro') macroPicker(hs, done);
+});
+
+
+/* ========================= macro picker (uses already-loaded data; no API calls) ========================= */
+function macroCandidates(hs) {
+  const map = new Map();
+  const get = (mc, d) => map.get(mc) || map.set(mc, Object.assign({ macro: mc, tpls: new Set(), def: undefined, type: 0, desc: '', hv: new Map() }, d)).get(mc);
+  for (const h of hs) {
+    const c = cur(h);
+    for (const id of tplClosure(c.templates)) { const t = D.templates.get(id); if (!t) continue;
+      for (const m of t.macros) { const e = get(m.macro); e.tpls.add(t.name); if (e.def === undefined) { e.def = m.value; e.type = m.type; e.desc = m.description; } } }
+    for (const m of c.macros) { const e = get(m.macro); e.hv.set(h.id, m.type === 1 ? null : m.value); if (m.type === 1) e.type = 1; }
+  }
+  return [...map.values()].sort((a, b) => a.macro.localeCompare(b.macro));
+}
+function macroPicker(hs, done) {
+  let cands = macroCandidates(hs);
+  const chosen = new Map();   // macro -> { action: 'set'|'del', value }
+  const bg = document.createElement('div'); bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal wide" role="dialog" aria-modal="true"><h3>Host macros on ${hs.length} host(s)</h3>
+    <p class="hint" style="margin:0 0 8px">Pick one or more macros and enter the values. The list comes from the templates these hosts are linked to and their existing host macros. It's built from data already loaded, so opening it doesn't call the Zabbix API.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input class="search" id="pkQ" placeholder="Filter, e.g. REQUESTED, CPU, {$ES." spellcheck="false">
+      <select class="sel" id="pkF"><option value="">All macros</option><option value="host">Already set on host</option><option value="tpl">Template default only</option><option value="empty">Empty</option><option value="sel">Selected</option></select>
+    </div>
+    <div class="pk-list" id="pkList"></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><input class="search" id="pkNew" placeholder="Other macro not in the list, e.g. {$MY.MACRO}" spellcheck="false"><button class="btn sm" id="pkAdd">Add</button></div>
+    <div class="acts"><span class="hint" id="pkSum" style="margin-right:auto"></span><button class="btn" data-x>Cancel</button><button class="btn primary" data-ok>Stage changes</button></div></div>`;
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  const list = bg.querySelector('#pkList');
+  const cv = e => { const vals = [...new Set(hs.map(h => e.hv.has(h.id) ? e.hv.get(h.id) : undefined))];
+    if (vals.length === 1 && vals[0] === undefined) return { label: e.def === undefined ? '<span class="hint">not set</span>' : `<span class="hint">inherits</span> ${esc(e.def === '' ? '∅' : e.def)}`, common: e.def ?? '' };
+    if (vals.length === 1) return { label: vals[0] === null ? '••••' : esc(vals[0] === '' ? '∅' : vals[0]), common: vals[0] ?? '' };
+    return { label: `<span class="b warn">${vals.length} different values</span>`, common: '' }; };
+  const render = () => {
+    const q = bg.querySelector('#pkQ').value.trim().toUpperCase(), f = bg.querySelector('#pkF').value;
+    const rows = cands.filter(e => (!q || e.macro.includes(q) || [...e.tpls].join(' ').toUpperCase().includes(q)) &&
+      (!f || (f === 'host' ? e.hv.size : f === 'tpl' ? !e.hv.size : f === 'empty' ? !e.hv.size && !e.def : chosen.has(e.macro))));
+    list.innerHTML = rows.length ? rows.map(e => { const c = chosen.get(e.macro), v = cv(e);
+      return `<div class="pk-row${c ? ' on' : ''}" data-m="${esc(e.macro)}">
+        <label class="pk-name"><input type="checkbox" ${c ? 'checked' : ''}> <span class="mono">${esc(e.macro)}</span>${e.type === 1 ? ' <span class="b mute">secret</span>' : ''}
+          <span class="pk-src">${e.tpls.size ? esc([...e.tpls].map(t => t.replace(/ by .*SISA$| -SISA$/, '')).join(', ')) : '<span class="b warn">not in any linked template</span>'}${e.desc ? ' · ' + esc(e.desc) : ''}</span></label>
+        <span class="pk-cur" title="Current value on the selected host(s)">${v.label}</span>
+        ${c ? `<span class="pk-edit"><select class="pkA"><option value="set"${c.action === 'set' ? ' selected' : ''}>Set to</option><option value="del"${c.action === 'del' ? ' selected' : ''}>Remove override</option></select>
+          <input class="pkV" type="${e.type === 1 ? 'password' : 'text'}" value="${esc(c.value)}" ${c.action === 'del' ? 'disabled placeholder="inherit from template"' : `placeholder="${esc(e.def || 'value')}"`} spellcheck="false"></span>` : '<span></span>'}
+      </div>`; }).join('') : '<div class="hint" style="padding:20px;text-align:center">No macros match.</div>';
+    const n = chosen.size, sets = [...chosen.values()].filter(c => c.action === 'set').length;
+    bg.querySelector('#pkSum').textContent = n ? `${n} macro(s) selected → ${sets} set, ${n - sets} removed, on ${hs.length} host(s)` : 'Nothing selected yet';
+  };
+  list.addEventListener('change', e => {
+    const row = e.target.closest('.pk-row'); if (!row) return; const mc = row.dataset.m, cand = cands.find(x => x.macro === mc);
+    if (e.target.type === 'checkbox') { if (e.target.checked) chosen.set(mc, { action: 'set', value: cv(cand).common }); else chosen.delete(mc); render();
+      if (e.target.checked) { const i = list.querySelector(`.pk-row[data-m="${CSS.escape(mc)}"] .pkV`); if (i) { i.focus(); i.select(); } } }
+    if (e.target.classList.contains('pkA')) { chosen.get(mc).action = e.target.value; render(); }
+  });
+  list.addEventListener('input', e => { if (e.target.classList.contains('pkV')) chosen.get(e.target.closest('.pk-row').dataset.m).value = e.target.value; });
+  bg.querySelector('#pkQ').addEventListener('input', render);
+  bg.querySelector('#pkF').addEventListener('change', render);
+  bg.querySelector('#pkAdd').onclick = () => {
+    let m = bg.querySelector('#pkNew').value.trim().toUpperCase(); if (!m) return; if (!/^\{\$/.test(m)) m = '{$' + m.replace(/^\$/, '') + '}';
+    if (!/^\{\$[A-Z0-9_.]+(:.*)?\}$/.test(m)) return toast('Invalid macro name');
+    if (!cands.some(x => x.macro === m)) {
+      const near = suggest(m, cands.filter(x => x.tpls.size).map(x => x.macro));
+      if (near && !confirm(`${m} isn't defined in the linked templates. Did you mean ${near}?\n\nOK = add ${m} anyway, Cancel = use ${near}`)) m = near;
+      if (!cands.some(x => x.macro === m)) cands = [...cands, { macro: m, tpls: new Set(), def: undefined, type: 0, desc: '', hv: new Map() }].sort((a, b) => a.macro.localeCompare(b.macro));
+    }
+    chosen.set(m, chosen.get(m) || { action: 'set', value: '' }); bg.querySelector('#pkNew').value = ''; bg.querySelector('#pkQ').value = m; render();
+  };
+  bg.addEventListener('click', e => { if (e.target === bg || e.target.hasAttribute('data-x')) close(); });
+  bg.addEventListener('keydown', e => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && e.target.id === 'pkNew') bg.querySelector('#pkAdd').click(); });
+  bg.querySelector('[data-ok]').onclick = () => {
+    if (!chosen.size) return toast('Select at least one macro');
+    for (const [mc, c] of chosen) { const cand = cands.find(x => x.macro === mc);
+      hs.forEach(h => c.action === 'del' ? delMacro(h, mc) : setMacro(h, mc, c.value, cand && cand.type === 1 ? 1 : undefined)); }
+    close(); done(hs.length);
+  };
+  render(); setTimeout(() => bg.querySelector('#pkQ').focus(), 10);
+}
+
+/* ========================= macro matrix ========================= */
+const PRESETS = {
+  mapping: () => [CFG.clientMacro, CFG.roleMacro],
+  sizing: () => [CFG.grpMacro, ...CFG.roles.filter(r => r.agg).flatMap(r => [r.count, r.cpu, r.mem, r.disk]).filter(Boolean)],
+};
+function matrixRows() {
+  const fc = $('#mClient').value, fr = $('#mRole').value;
+  const preset = $('#mPreset').value;
+  return M.scoped.filter(i => (!fc || i.client === fc || i.cl.includes(fc)) &&
+    (preset === 'sizing' ? i.isCluster : preset === 'mapping' ? !i.isCluster : true) &&
+    (!fr || (fr === 'cluster' ? i.isCluster : i.roles.some(r => r.key === fr))))
+    .sort((a, b) => (a.client || '￿').localeCompare(b.client || '￿') || a.h.name.localeCompare(b.h.name));
+}
+function renderMacros() {
+  fillFilters();
+  const preset = $('#mPreset').value;
+  if (preset !== 'custom') UI.cols = PRESETS[preset]();
+  const names = new Set(); D.templates.forEach(t => t.macros.forEach(m => names.add(m.macro))); [CFG.clientMacro, CFG.roleMacro, CFG.grpMacro].forEach(m => names.add(m));
+  $('#macroNames').innerHTML = [...names].sort().map(n => `<option value="${esc(n)}">`).join('');
+  const rows = matrixRows();
+  let h = `<thead><tr><th>Host</th><th>Client</th>${UI.cols.map((c, k) => `<th class="mono" style="text-transform:none">${esc(c)}${preset === 'custom' ? ` <button class="btn ghost sm" data-rmcol="${k}" title="Remove column">×</button>` : ''}</th>`).join('')}</tr></thead><tbody>`;
+  for (const i of rows) {
+    h += `<tr data-id="${i.h.id}"><td><span class="hn" data-open>${esc(i.h.name)}</span><div class="tech">${esc(i.isCluster ? 'cluster' : i.roles.map(r => r.label).join(', ') || 'no role')}</div></td><td>${esc(i.client || i.cl.join(', ') || '—')}</td>`;
+    for (const mc of UI.cols) {
+      const hm = i.c.macros.find(m => m.macro === mc), inh = inherited(i.c, mc), orig = i.h.macros.find(m => m.macro === mc);
+      const chg = (hm && (!orig || orig.value !== hm.value || hm.touched)) || (!hm && orig);
+      const expect = mc === CFG.clientMacro ? (i.cl.length === 1 ? i.cl[0] : null) : mc === CFG.roleMacro ? (i.roles.length === 1 ? i.roles[0].value : null) : mc === CFG.grpMacro ? i.client : null;
+      const bad = expect != null && (hm ? hm.value : inh && inh.value) !== expect;
+      h += `<td><input class="cell${chg ? ' changed' : ''}${bad ? ' badcell' : ''}" data-m="${esc(mc)}" value="${hm && hm.type !== 1 ? esc(hm.value) : ''}" placeholder="${hm && hm.type === 1 ? '•••• secret' : inh ? esc(inh.value || '∅ template empty') : '∅'}"${bad ? ` title="Expected ${esc(expect)}"` : ''} spellcheck="false"></td>`;
+    }
+    h += '</tr>';
+  }
+  $('#mTable').innerHTML = h + (rows.length ? '' : `<tr><td colspan="${UI.cols.length + 2}" class="hint" style="padding:30px;text-align:center">No hosts match.</td></tr>`) + '</tbody>';
+}
+['#mPreset', '#mClient', '#mRole'].forEach(s => $(s).addEventListener('change', renderMacros));
+$('#mAddCol').addEventListener('change', e => {
+  let m = e.target.value.trim().toUpperCase(); if (!m) return; if (!/^\{\$/.test(m)) m = '{$' + m + '}';
+  if ($('#mPreset').value !== 'custom') { $('#mPreset').value = 'custom'; }
+  if (!UI.cols.includes(m)) UI.cols.push(m); e.target.value = ''; renderMacros();
+});
+$('#mTable').addEventListener('click', e => {
+  if (e.target.dataset.rmcol) { UI.cols.splice(+e.target.dataset.rmcol, 1); return renderMacros(); }
+  const tr = e.target.closest('tr[data-id]'); if (tr && e.target.closest('[data-open]')) openDrawer(tr.dataset.id);
+});
+let mT;
+function cellSet(h, mc, v) { const hm = cur(h).macros.find(m => m.macro === mc); if (v === '' && !(hm && hm.type === 1)) delMacro(h, mc); else setMacro(h, mc, v); }
+$('#mTable').addEventListener('input', e => {
+  if (!e.target.dataset.m) return; const h = D.hostById.get(e.target.closest('tr').dataset.id);
+  cellSet(h, e.target.dataset.m, e.target.value);
+  e.target.classList.toggle('changed', true);
+  clearTimeout(mT); mT = setTimeout(() => changed({ quiet: true, drawer: false }), 300);
+});
+$('#mTable').addEventListener('focusout', () => { clearTimeout(mT); mT = setTimeout(() => { if (!document.activeElement || !document.activeElement.matches('#mTable input')) changed({ drawer: false }); }, 50); });
+$('#mTable').addEventListener('keydown', e => {
+  if (!e.target.matches('input.cell') || !['Enter', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  const td = e.target.closest('td'), col = [...td.parentNode.children].indexOf(td), tr = td.parentNode;
+  const nx = (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) ? tr.previousElementSibling : tr.nextElementSibling;
+  if (nx && nx.children[col]) { e.preventDefault(); const i = nx.children[col].querySelector('input'); if (i) { i.focus(); i.select(); } }
+});
+$('#mTable').addEventListener('paste', e => {
+  if (!e.target.matches('input.cell')) return;
+  const text = e.clipboardData.getData('text'); if (!/[\t\n]/.test(text.trim())) return;
+  e.preventDefault();
+  const grid = text.replace(/\r/g, '').replace(/\n$/, '').split('\n').map(l => l.split('\t'));
+  const td = e.target.closest('td'), col0 = [...td.parentNode.children].indexOf(td) - 2;
+  let tr = td.parentNode, n = 0;
+  for (const row of grid) {
+    if (!tr) break; const h = D.hostById.get(tr.dataset.id);
+    row.forEach((v, k) => { const mc = UI.cols[col0 + k]; if (mc) { cellSet(h, mc, v.trim()); n++; } });
+    tr = tr.nextElementSibling;
+  }
+  changed({ drawer: false }); toast(`Pasted ${n} cell(s)`);
+});
+
+/* CSV import / export (wide: host + macro columns, or long: host,macro,value) */
+const csvCell = v => /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+function parseDelim(text) {
+  const f = text.split(/\r?\n/)[0] || ''; const d = f.includes('\t') ? '\t' : (f.split(';').length > f.split(',').length ? ';' : ',');
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) { const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; continue; }
+    if (c === '"' && cell === '') q = true; else if (c === d) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; } else cell += c; }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim()));
+}
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+$('#mExport').onclick = () => {
+  const rows = matrixRows();
+  let s = '﻿host,client,' + UI.cols.map(csvCell).join(',') + '\n';
+  rows.forEach(i => s += [i.h.host, i.client || i.cl.join('|'), ...UI.cols.map(mc => { const hm = i.c.macros.find(m => m.macro === mc); return hm && hm.type !== 1 ? hm.value : ''; })].map(csvCell).join(',') + '\n');
+  download('host_macros.csv', s, 'text/csv');
+};
+$('#mImport').onclick = () => modal('Import host macros', `<p class="hint">Two formats are accepted.<br><b>Wide:</b> <code>host,{$CLIENT},{$ROLE},…</code>, one row per host.<br><b>Long:</b> <code>host,macro,value</code>.<br>The <code>host</code> column matches the technical name or the visible name. An extra <code>client</code> column (wide format) also assigns the client group. Empty cells are skipped.</p>
+  <textarea id="impT" spellcheck="false" placeholder="host,{$CLIENT},{$ROLE}&#10;acme-eng-01,ACME,engine"></textarea><div id="impP" class="hint" style="margin-top:8px"></div>`, bg => {
+  const rows = parseDelim(bg.querySelector('#impT').value.replace(/^﻿/, '')); if (rows.length < 2) return false;
+  const hdr = rows[0].map(x => x.trim()); const hi = hdr.findIndex(x => /^host$/i.test(x)); if (hi < 0) { bg.querySelector('#impP').textContent = 'A "host" column is required.'; return false; }
+  const byName = new Map(); D.hosts.forEach(h => { byName.set(h.host, h); byName.set(h.name, h); });
+  const long = hdr.some(x => /^macro$/i.test(x)); let n = 0; const miss = new Set();
+  const norm = m => { m = m.trim().toUpperCase(); return /^\{\$/.test(m) ? m : '{$' + m + '}'; };
+  rows.slice(1).forEach(r => {
+    const h = byName.get((r[hi] || '').trim()); if (!h) { miss.add(r[hi]); return; }
+    if (long) { const mi = hdr.findIndex(x => /^macro$/i.test(x)), vi = hdr.findIndex(x => /^value$/i.test(x)); if (r[mi] && r[vi] !== undefined && r[vi] !== '') { setMacro(h, norm(r[mi]), r[vi]); n++; } }
+    else hdr.forEach((c, k) => { if (k === hi || r[k] === undefined || r[k].trim() === '') return;
+      if (/^client$/i.test(c)) { M = model(); assignClient(h, r[k].trim()); n++; return; }
+      if (/^\{?\$/.test(c)) { setMacro(h, norm(c), r[k].trim()); n++; } });
+  });
+  changed(); toast(`${n} value(s) staged${miss.size ? ` · ${miss.size} unknown host(s): ${[...miss].slice(0, 3).join(', ')}` : ''}`);
+});
+
+/* ========================= issues ========================= */
+const CODE = { 'multi-client': 'Multiple clients', 'cluster-grp': 'Cluster mapping', 'cluster-group': 'Cluster group', 'requested-empty': 'Sizing empty', 'no-client': 'No client', 'no-role': 'No role',
+  'multi-role': 'Multiple roles', 'client-macro': '{$CLIENT} sync', 'role-macro': '{$ROLE} sync', 'missing-template': 'Missing template', 'macro-typo': 'Macro typo', disabled: 'Disabled', 'no-cluster': 'No cluster host', 'multi-cluster': 'Multiple clusters', 'count-drift': 'Server count drift' };
+function renderIssues() {
+  const f = UI.issueF, by = {}; ISSUES.forEach(i => by[i.code] = (by[i.code] || 0) + 1);
+  const fixable = ISSUES.filter(i => i.fix && (f === 'all' || i.sev === f || i.code === f));
+  $('#iHead').innerHTML = ['all', 'err', 'warn', 'info'].map(k => `<button class="chipf${f === k ? ' on' : ''}" data-f="${k}">${{ all: 'All', err: 'Errors', warn: 'Warnings', info: 'Info' }[k]} (${k === 'all' ? ISSUES.length : ISSUES.filter(i => i.sev === k).length})</button>`).join('') +
+    Object.keys(by).sort().map(k => `<button class="chipf${f === k ? ' on' : ''}" data-f="${k}">${esc(CODE[k] || k)} · ${by[k]}</button>`).join('') +
+    `<span class="spacer"></span><button class="btn mod sm" id="fixAll"${fixable.length ? '' : ' disabled'}>Stage all ${fixable.length} automatic fixes</button>`;
+  const list = ISSUES.map((x, k) => [x, k]).filter(([i]) => f === 'all' || i.sev === f || i.code === f).sort((a, b) => ({ err: 0, warn: 1, info: 2 }[a[0].sev] - { err: 0, warn: 1, info: 2 }[b[0].sev]));
+  $('#iList').innerHTML = list.map(([i, k]) => `<div class="issue ${i.sev}"><span class="b ${i.sev}">${i.sev === 'err' ? 'error' : i.sev === 'warn' ? 'warning' : 'info'}</span>
+    <div class="body"><div class="t">${esc(i.title)}</div><div class="d">${i.detail || ''}</div></div>
+    ${i.fix ? `<button class="btn sm mod" data-fix="${k}">${esc(i.fix.label)}</button>` : ''}${i.host ? `<button class="btn sm" data-open="${i.host.id}">Open host</button>` : ''}${i.go ? '<button class="btn sm" data-sizing>Edit sizing</button>' : ''}</div>`).join('') || '<div class="card pad hint">No issues in this view. 🎉</div>';
+}
+$('#tab-issues').addEventListener('click', e => {
+  const c = e.target.closest('[data-f]'); if (c) { UI.issueF = c.dataset.f; return renderIssues(); }
+  if (e.target.dataset.fix) { ISSUES[+e.target.dataset.fix].fix.fn(); return changed(); }
+  if (e.target.dataset.open) return openDrawer(e.target.dataset.open);
+  if (e.target.hasAttribute('data-sizing')) { $('#mPreset').value = 'sizing'; return showTab('macros'); }
+  if (e.target.id === 'fixAll') {
+    // apply iteratively: fixes can unlock further fixes (e.g. group added → macro sync)
+    let n = 0;
+    for (let round = 0; round < 4; round++) {
+      const fx = ISSUES.filter(i => i.fix && (UI.issueF === 'all' || i.sev === UI.issueF || i.code === UI.issueF)); if (!fx.length) break;
+      fx.forEach(i => { i.fix.fn(); n++; }); M = model(); ISSUES = computeIssues(M);
+    }
+    changed(); toast(`${n} fix(es) staged. Check them on Review & apply.`);
+  }
+});
+
+/* ========================= review & apply ========================= */
+function renderReview() {
+  const plan = allOps(), n = plan.reduce((s, x) => s + x.ops.length, 0);
+  const est = n ? planCallCount().calls : 0;
+  $('#rSum').textContent = n ? `${n} change(s) on ${plan.length} host(s)${P.newGroups.size ? ` · ${P.newGroups.size} new group(s)` : ''} · batched into ${est} API call(s), ${PACE_MS} ms apart` : '';
+  const empty = plan.filter(x => x.ops.some(o => o.kind === 'groups' && !o.groups.length));
+  $('#rBlock').innerHTML = empty.length ? `<div class="banner" style="background:var(--err-soft);margin-top:12px">⚠ Zabbix needs every host to be in at least one group. ${empty.map(x => esc(x.h.name)).join(', ')} would have none.</div>` : '';
+  $('#rApply').disabled = !n || empty.length > 0;
+  $('#rApply').textContent = D.mode === 'demo' ? 'Apply (demo, simulated)' : 'Apply to Zabbix';
+  const icon = { groups: '⧉', link: '＋', unlink: '−', mcreate: '＋', mupdate: '✎', mdel: '✕' };
+  $('#rList').innerHTML = n ? plan.map(({ h, ops }) => `<div class="card pad" style="margin-bottom:10px;padding:10px 14px"><div style="display:flex;gap:8px;align-items:center"><b class="hn" data-open="${h.id}">${esc(h.name)}</b><span class="tech">${esc(h.host)}</span><span class="spacer"></span><button class="btn ghost sm" data-undo="${h.id}">Undo host</button></div>
+    ${ops.map(o => `<div class="op"><span class="st">${icon[o.kind]}</span><span class="what">${{ groups: 'host groups', link: 'link template', unlink: 'unlink template', mcreate: 'add macro', mupdate: 'update macro', mdel: 'remove macro' }[o.kind]}</span><span class="mono">${
+      o.kind === 'groups' ? [...o.add.map(g => `<ins>+${esc(gName(g))}${g.startsWith('new:') ? ' (new)' : ''}</ins>`), ...o.rem.map(g => `<del>−${esc(gName(g))}</del>`)].join('  ') : o.kind === 'link' || o.kind === 'unlink' ? esc(o.ids.map(tName).join(', ')) + (o.kind === 'unlink' ? ' <span class="hint">(collected data is kept)</span>' : '') : opText(o)}</span></div>`).join('')}</div>`).join('')
+    : '<p class="hint">Nothing to apply. Changes you make in Topology, Hosts, Host macros or Issues show up here.</p>';
+}
+$('#rList').addEventListener('click', e => {
+  if (e.target.dataset.undo) { P.hosts.delete(e.target.dataset.undo); return changed(); }
+  if (e.target.dataset.open) openDrawer(e.target.dataset.open);
+});
+$('#rDiscard').onclick = () => { if (confirm('Discard all pending changes?')) { P.hosts.clear(); P.newGroups.clear(); changed(); } };
+$('#rExport').onclick = () => download('zabbix_host_plan.json', JSON.stringify({ zabbix: D.url, created: new Date().toISOString(), newGroups: [...P.newGroups],
+  hosts: allOps().map(({ h, ops }) => ({ hostid: h.id, host: h.host, ops: ops.map(o => Object.assign({}, o, { value: o.type === 1 ? '****' : o.value, before: undefined, groups: o.groups && o.groups.map(gName), add: o.add && o.add.map(gName), rem: o.rem && o.rem.map(gName), ids: o.ids && o.ids.map(tName) })) })) }, null, 2), 'application/json');
+$('#rApply').onclick = async () => {
+  const plan = allOps(), n = plan.reduce((s, x) => s + x.ops.length, 0);
+  if (!confirm(`${D.mode === 'demo' ? '[DEMO, nothing is sent]\n' : ''}Apply ${n} change(s) to ${plan.length} host(s) on\n${D.url || 'demo data'}?`)) return;
+  const btn = $('#rApply'); btn.disabled = true; btn.textContent = 'Applying…';
+  $('#rLog').innerHTML = '<h3 style="font-size:14px;margin:16px 0 6px">Apply log</h3><div class="log" id="logBox"></div>';
+  const box = $('#logBox');
+  const log = (s, c) => { box.insertAdjacentHTML('beforeend', `<div style="color:${c === 'err' ? 'var(--err)' : 'inherit'}">${esc(s)}</div>`); box.scrollTop = box.scrollHeight; };
+  const r = await applyAll(log);
+  log(`— done: ${r.ok} succeeded, ${r.fail} failed, ${r.calls} batched call(s)${D.mode === 'demo' ? ' (simulated)' : ''}`);
+  if (D.mode === 'api') { log('Reloading from Zabbix…'); try { await loadFromApi(); log('✓ reloaded'); } catch (e) { log('✗ reload failed: ' + e.message, 'err'); } }
+  else { P.hosts.clear(); P.newGroups.clear(); }
+  const keep = $('#rLog').innerHTML; changed(); $('#rLog').innerHTML = keep;
+};
+
+/* ========================= settings ========================= */
+function renderSettings() {
+  const tplOpts = [...new Set([...D.templates.values()].map(t => t.name))].sort();
+  $('#sRoles').innerHTML = `<thead><tr><th>Label</th><th>Host group</th><th>${esc(CFG.roleMacro)} value</th><th>Expected templates (comma separated)</th><th>Aggregated</th><th>Server count macro</th><th>CPU macro</th><th>Memory macro</th><th>Disk macro</th></tr></thead><tbody>` +
+    CFG.roles.map((r, k) => `<tr data-k="${k}">${['label', 'group', 'value'].map(f => `<td><input data-f="${f}" value="${esc(r[f])}"></td>`).join('')}<td><input data-f="templates" value="${esc(r.templates.join(', '))}"></td>
+      <td style="text-align:center"><input type="checkbox" data-f="agg" ${r.agg ? 'checked' : ''}></td>${['count', 'cpu', 'mem', 'disk'].map(f => `<td><input data-f="${f}" value="${esc(r[f] || '')}"></td>`).join('')}</tr>`).join('') + '</tbody>';
+  $('#sTpl').innerHTML = `<label>Cluster template</label><select id="sClu" class="sel">${tplOpts.map(n => `<option${n === CFG.clusterTemplate ? ' selected' : ''}>${esc(n)}</option>`).join('')}${tplOpts.includes(CFG.clusterTemplate) ? '' : `<option selected>${esc(CFG.clusterTemplate)} (not found)</option>`}</select>
+    <label>Client macro on cluster host</label><input class="search" data-g="grpMacro" value="${esc(CFG.grpMacro)}">
+    <label>Client macro on member hosts</label><input class="search" data-g="clientMacro" value="${esc(CFG.clientMacro)}">
+    <label>Role macro on member hosts</label><input class="search" data-g="roleMacro" value="${esc(CFG.roleMacro)}">
+    <label>Keep ${esc(CFG.clientMacro)} equal to the client group</label><span><input type="checkbox" id="sSync" ${CFG.syncClientMacro ? 'checked' : ''}></span>`;
+  $('#sAuto').checked = CFG.autoDetect;
+  const auto = new Set(); if (CFG.autoDetect) D.hosts.forEach(h => [CFG.grpMacro, CFG.clientMacro].forEach(mc => { const v = mval(cur(h), mc); if (v && D.groupByName.has(v)) auto.add(v); }));
+  const groups = [...D.groups.values()].map(g => g.name).filter(n => !roleByGroup(n)).sort();
+  $('#sGroups').innerHTML = groups.map(n => `<label><input type="checkbox" data-cg="${esc(n)}" ${CFG.clientGroups.includes(n) || auto.has(n) ? 'checked' : ''} ${auto.has(n) && !CFG.clientGroups.includes(n) ? 'disabled title="auto-detected"' : ''}> ${esc(n)}${auto.has(n) ? ' <span class="b mute">auto</span>' : ''}</label>`).join('');
+}
+$('#tab-settings').addEventListener('change', e => {
+  const t = e.target, tr = t.closest('tr[data-k]');
+  if (tr) { const r = CFG.roles[+tr.dataset.k], f = t.dataset.f; r[f] = f === 'agg' ? t.checked : f === 'templates' ? t.value.split(',').map(s => s.trim()).filter(Boolean) : t.value.trim(); }
+  if (t.dataset.g) CFG[t.dataset.g] = t.value.trim();
+  if (t.id === 'sClu') CFG.clusterTemplate = t.value;
+  if (t.id === 'sSync') CFG.syncClientMacro = t.checked;
+  if (t.id === 'sAuto') CFG.autoDetect = t.checked;
+  if (t.dataset.cg) { const n = t.dataset.cg; CFG.clientGroups = t.checked ? [...new Set([...CFG.clientGroups, n])] : CFG.clientGroups.filter(x => x !== n); }
+  saveCfg(); changed();
+});
+$('#sReset').onclick = () => { if (!confirm('Reset settings?')) return; CFG = JSON.parse(JSON.stringify(DEFAULTS)); saveCfg(); changed(); };
+
+/* ========================= modal ========================= */
+function modal(title, body, onOk) {
+  const bg = document.createElement('div'); bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h3>${esc(title)}</h3>${body}<div class="acts"><button class="btn" data-x>Cancel</button><button class="btn primary" data-ok>Apply</button></div></div>`;
+  document.body.appendChild(bg); const close = () => bg.remove();
+  bg.addEventListener('click', e => { if (e.target === bg || e.target.hasAttribute('data-x')) close(); });
+  bg.querySelector('[data-ok]').onclick = () => { if (onOk(bg) !== false) close(); };
+  bg.addEventListener('keydown', e => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && e.target.tagName === 'INPUT') bg.querySelector('[data-ok]').click(); });
+  const f = bg.querySelector('input,select,textarea'); if (f) setTimeout(() => f.focus(), 10);
+}
+
+/* ========================= demo data ========================= */
+function demoData() {
+  const groups = [], gid = n => { let g = groups.find(x => x.name === n); if (!g) { g = { groupid: String(100 + groups.length), name: n }; groups.push(g); } return g.groupid; };
+  ['Linux servers', 'Engines', 'ESNodes', 'Forwarders', 'Parsers', 'AIML', 'SOAR', 'Zabbix servers'].forEach(gid);
+  const mac = (macro, value, description) => ({ macro, value, description, type: 0 });
+  const templates = [
+    { templateid: '10501', host: LINUX, name: LINUX, macros: [mac('{$CLIENT}', '', 'client name for the respective server'), mac('{$ROLE}', '', 'engine / parser / forwarder / esnode /aiml'), mac('{$CPU.UTIL.L1}', '80'), mac('{$CPU.UTIL.L2}', '90'), mac('{$MEMORY.UTIL.L3}', '90'), mac('{$VFS.FS.PUSED.MAX.WARN}', '75'), mac('{$VFS.FS.PUSED.MAX.CRIT}', '85')] },
+    { templateid: '10502', host: ESNODE, name: ESNODE, macros: [mac('{$ES.HOST}', '{HOST.HOST}'), mac('{$ES.PORT}', '9800')] },
+    { templateid: '10503', host: CLUSTER, name: CLUSTER, macros: [mac('{$GRP.CLIENT}', '', 'Client Name'), mac('{$ELASTICSEARCH.HOST}', '<SET ELASTICSEARCH HOST>'), mac('{$ELASTICSEARCH.PORT}', '9200'),
+      { macro: '{$ELASTICSEARCH.PASSWORD}', type: 1, description: '' }, ...DEFAULTS.roles.flatMap(r => [r.count, r.cpu, r.mem, r.disk]).filter(Boolean).map(m => mac(m, ''))] },
+    { templateid: '10001', host: 'Linux by Zabbix agent', name: 'Linux by Zabbix agent', macros: [] },
+  ];
+  const hosts = []; let ip = 10, id = 20000;
+  const H = (name, gs, tpls, macros, o = {}) => hosts.push({ hostid: String(++id), host: name, name, status: o.disabled ? 1 : 0, groups: gs.map(g => ({ groupid: gid(g) })),
+    parentTemplates: tpls.map(t => ({ templateid: t })), macros: Object.entries(macros).map(([m, v], k) => ({ hostmacroid: String(id * 10 + k), macro: m, value: v, type: 0 })), interfaces: [{ ip: `10.20.${Math.floor(ip / 250)}.${(ip++ % 250) + 1}`, main: 1, useip: 1 }] });
+  const plan = { ACME: [3, 6, 3, 4, 1, 0], GLOBEX: [2, 4, 2, 3, 0, 1], INITECH: [2, 3, 2, 2, 0, 0], UMBRELLA: [1, 3, 1, 2, 0, 0], STARK: [3, 6, 3, 4, 0, 0], WAYNE: [2, 2, 1, 2, 0, 0] };
+  const keys = ['engine', 'esnode', 'forwarder', 'parser', 'aiml', 'soar'], short = { engine: 'eng', esnode: 'es', forwarder: 'fwd', parser: 'parser', aiml: 'aiml', soar: 'soar' };
+  const cpu = { engine: 16, esnode: 8, forwarder: 4, parser: 8, aiml: 32, soar: 8 }, memg = { engine: 64, esnode: 32, forwarder: 16, parser: 32, aiml: 128, soar: 16 };
+  const items = [];
+  for (const [c, counts] of Object.entries(plan)) {
+    gid(c);
+    counts.forEach((n, k) => { const r = DEFAULTS.roles.find(x => x.key === keys[k]);
+      for (let j = 1; j <= n; j++) { const name = `${c.toLowerCase()}-${short[r.key]}-${String(j).padStart(2, '0')}`;
+        H(name, ['Linux servers', c, r.group], r.key === 'esnode' ? ['10501', '10502'] : ['10501'], { '{$CLIENT}': c, '{$ROLE}': r.value });
+        items.push({ hostid: String(id), key_: 'system.cpu.num', lastvalue: String(cpu[r.key]) }, { hostid: String(id), key_: 'vm.memory.size[total]', lastvalue: String(memg[r.key] * 1073741824) }, { hostid: String(id), key_: 'vfs.fs.dependent.size[/,total]', lastvalue: String(100 * 1073741824) }); } });
+    if (c !== 'UMBRELLA') {
+      const m = { '{$GRP.CLIENT}': c === 'WAYNE' ? 'Wayne' : c, '{$ELASTICSEARCH.HOST}': `es.${c.toLowerCase()}.internal` };
+      DEFAULTS.roles.filter(r => r.agg).forEach((r, k) => { const n = counts[keys.indexOf(r.key)];
+        if (c === 'INITECH' && r.key === 'parser') return;
+        m[r.count] = String(c === 'STARK' && r.key === 'esnode' ? n + 2 : n); m[r.cpu] = String(n * cpu[r.key]); if (!(c === 'GLOBEX' && r.key === 'forwarder')) m[r.mem] = String(n * memg[r.key]); });
+      if (c === 'ACME') { m['{$ES.MEM.REQUESTED}'] = m['{$ES.MEMORY.REQUESTED}']; delete m['{$ES.MEMORY.REQUESTED}']; }
+      H(`${c.toLowerCase()}-es-cluster`, [c], ['10503'], m);
+    }
+  }
+  // deliberate real-world inconsistencies
+  const fh = n => hosts.find(h => h.host === n);
+  fh('acme-parser-03').macros.find(m => m.macro === '{$CLIENT}').value = 'Acme';
+  fh('globex-eng-02').macros.find(m => m.macro === '{$ROLE}').value = 'parser';
+  fh('initech-es-03').parentTemplates = [{ templateid: '10501' }];
+  fh('stark-fwd-02').groups = fh('stark-fwd-02').groups.filter(g => g.groupid !== gid('STARK'));
+  fh('stark-parser-04').groups = fh('stark-parser-04').groups.filter(g => g.groupid !== gid('Parsers'));
+  fh('globex-es-04').groups.push({ groupid: gid('INITECH') });
+  fh('wayne-eng-02').status = 1;
+  fh('umbrella-fwd-01').macros = [];
+  fh('stark-eng-03').parentTemplates = [{ templateid: '10001' }];
+  ['new-host-01', 'new-host-02', 'new-host-03'].forEach(n => H(n, ['Linux servers'], ['10501'], {}));
+  H('elastic-test-01', ['Linux servers', 'ESNodes'], ['10501', '10502'], { '{$ROLE}': 'esnode' });
+  H('zabbix-proxy-01', ['Zabbix servers'], ['10001'], {});
+  H('jump-01', ['Linux servers'], ['10001'], {});
+  return { groups, templates, hosts, items };
+}
+
+/* ========================= boot ========================= */
+function connected(label, cls) {
+  $('#conn').innerHTML = `<span class="dot ${cls}"></span> ${esc(label)}`;
+  ['#tabs', '#btnReload', '#btnReview', '#btnDisconnect'].forEach(s => $(s).classList.remove('hidden'));
+  changed({ quiet: true }); showTab('topo');
+}
+$('#btnDemo').onclick = () => { const d = demoData(); D.mode = 'demo'; D.url = ''; ingest(d.groups, d.templates, d.hosts.map(h => Object.assign(h, { groups: h.groups.map(g => Object.assign(g, { name: d.groups.find(x => x.groupid === g.groupid).name })) })), d.items); connected('Demo data (nothing is sent)', 'demo'); };
+$('#btnConnect').onclick = async () => {
+  const u = $('#apiUrl').value, t = $('#apiToken').value.trim(); $('#connErr').innerHTML = '';
+  if (!u || !t) { $('#connErr').innerHTML = '<div class="err-box">Enter the Zabbix URL and an API token.</div>'; return; }
+  D.url = normUrl(u); D.token = t; D.mode = 'api';
+  LS.set('zhm:url', u); saveToken(t, $('#tokStore').value);
+  const b = $('#btnConnect'); b.disabled = true; b.textContent = 'Loading…';
+  try { await loadFromApi(); connected(`${D.url.replace(/^https?:\/\//, '').replace(/\/api_jsonrpc\.php$/, '')} · Zabbix ${D.version}`, 'on'); }
+  catch (e) { $('#connErr').innerHTML = `<div class="err-box">${esc(e.message)}</div>`; }
+  finally { b.disabled = false; b.textContent = 'Connect & load'; }
+};
+$('#btnReload').onclick = async () => {
+  if (allOps().length && !confirm('Reloading discards pending changes. Continue?')) return;
+  if (D.mode === 'demo') return $('#btnDemo').click();
+  try { await loadFromApi(); changed(); toast('Reloaded from Zabbix'); } catch (e) { toast(e.message); }
+};
+$('#btnReview').onclick = () => showTab('review');
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('#btnTheme').onclick = () => { const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; LS.set('zhm:theme', r.dataset.theme); };
+/* ---- token storage: none | session (until tab closes) | local (permanent on this device) ---- */
+function saveToken(t, mode) {
+  try { sessionStorage.removeItem('zhm:tok'); } catch (e) {}
+  try { localStorage.removeItem('zhm:tok'); } catch (e) {}
+  if (mode === 'session') { try { sessionStorage.setItem('zhm:tok', t); } catch (e) {} }
+  if (mode === 'local') LS.set('zhm:tok', t);
+  LS.set('zhm:tokMode', mode);
+  tokUi();
+}
+function storedToken() {
+  const l = LS.get('zhm:tok'); if (l) return { t: l, mode: 'local' };
+  try { const s = sessionStorage.getItem('zhm:tok'); if (s) return { t: s, mode: 'session' }; } catch (e) {}
+  return null;
+}
+function tokUi() {
+  const m = $('#tokStore').value, saved = storedToken();
+  $('#tokWarn').innerHTML = m === 'local' ? '⚠ The token is kept in this browser’s storage for this site until you click “Forget saved token”. Anyone who can use this browser profile can act with it in Zabbix. Only use this on your own device, with a token that has an expiry date.' : '';
+  $('#btnForget').classList.toggle('hidden', !saved);
+}
+$('#tokStore').addEventListener('change', tokUi);
+$('#btnForget').onclick = () => { saveToken('', 'none'); $('#tokStore').value = 'none'; $('#apiToken').value = ''; toast('Saved token removed from this browser'); };
+$('#btnDisconnect').onclick = () => {
+  if (allOps().length && !confirm('Disconnecting discards pending changes. Continue?')) return;
+  try { sessionStorage.setItem('zhm:noAuto', '1'); } catch (e) {}
+  location.reload();
+};
+(async () => {
+  const t = LS.get('zhm:theme'); if (t) document.documentElement.dataset.theme = t;
+  $('#apiUrl').value = LS.get('zhm:url') || '';
+  // When served by the bundled container, it proxies /api_jsonrpc.php to Zabbix (same origin → no CORS, HTTPS end to end to the proxy).
+  if (/^https?:$/.test(location.protocol)) {
+    try {
+      const r = await fetch('config.json', { cache: 'no-store' });
+      if (r.ok) { const c = await r.json();
+        if (c.zabbixProxy) {
+          const here = location.origin + location.pathname.replace(/[^/]*$/, '');
+          if (!$('#apiUrl').value) $('#apiUrl').value = here;
+          $('#proxyNote').classList.remove('hidden');
+          $('#proxyNote').innerHTML = `This server forwards API calls to <code>${esc(c.target || 'Zabbix')}</code>. Use <code>${esc(here)}</code> as the Zabbix URL.`;
+        } }
+    } catch (e) { /* not served by the container */ }
+  }
+  const saved = storedToken();
+  $('#tokStore').value = saved ? saved.mode : (LS.get('zhm:tokMode') === 'local' ? 'none' : (LS.get('zhm:tokMode') || 'none'));
+  tokUi();
+  if (saved) $('#apiToken').value = saved.t;
+  let noAuto = false; try { noAuto = sessionStorage.getItem('zhm:noAuto') === '1'; sessionStorage.removeItem('zhm:noAuto'); } catch (e) {}
+  if (saved && saved.mode === 'local' && $('#apiUrl').value && !noAuto) $('#btnConnect').click();
+})();
+window.addEventListener('beforeunload', e => { if (D.mode && allOps().length) { e.preventDefault(); e.returnValue = ''; } });
+</script>
+</body>
+</html>

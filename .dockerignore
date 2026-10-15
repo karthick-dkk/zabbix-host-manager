@@ -1,0 +1,5 @@
+# Build context is this folder; only ship what the image needs (keeps template exports and screenshots out).
+*
+!host-manager.html
+!macro-manager.html
+!deploy/40-zhm-config.sh

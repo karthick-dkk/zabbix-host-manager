@@ -1,0 +1,1186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zabbix Macro Manager</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f1f3f6; --border: #dfe3e8; --border-strong: #c7cdd5;
+  --text: #1c2330; --muted: #5f6b7a; --faint: #8a95a3;
+  --accent: #d4202c; --accent-soft: #fde8e9; --focus: #2563eb;
+  --err: #c62828; --err-soft: #fdecec; --warn: #b26a00; --warn-soft: #fff4e0; --info: #2f6db3; --info-soft: #e8f1fb;
+  --ok: #1f7a46; --ok-soft: #e6f4ec; --mod: #6d3fc0; --mod-soft: #f1ebfb;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --panel: #161a20; --panel-2: #1d222a; --border: #2a313b; --border-strong: #3a4350;
+    --text: #e6e9ee; --muted: #9aa5b3; --faint: #6c7787;
+    --accent: #ff5a63; --accent-soft: #3a1c1f; --focus: #6aa2ff;
+    --err: #ff6b6b; --err-soft: #3a1d1f; --warn: #f0a640; --warn-soft: #36290f; --info: #6aa8f0; --info-soft: #172739;
+    --ok: #4cc283; --ok-soft: #15301f; --mod: #b493f5; --mod-soft: #2a2140;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1216; --panel: #161a20; --panel-2: #1d222a; --border: #2a313b; --border-strong: #3a4350;
+  --text: #e6e9ee; --muted: #9aa5b3; --faint: #6c7787;
+  --accent: #ff5a63; --accent-soft: #3a1c1f; --focus: #6aa2ff;
+  --err: #ff6b6b; --err-soft: #3a1d1f; --warn: #f0a640; --warn-soft: #36290f; --info: #6aa8f0; --info-soft: #172739;
+  --ok: #4cc283; --ok-soft: #15301f; --mod: #b493f5; --mod-soft: #2a2140;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+button, input, select, textarea { font: inherit; color: inherit; }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+a { color: var(--focus); }
+
+header.top { position: sticky; top: 0; z-index: 20; background: var(--panel); border-bottom: 1px solid var(--border); }
+.top-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: -.01em; }
+.brand .logo { width: 22px; height: 22px; border-radius: 5px; background: var(--accent); color: #fff; display: grid; place-items: center; font: 700 12px var(--mono); }
+.file-chip { color: var(--muted); font-size: 12.5px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spacer { flex: 1; }
+.stats { display: flex; gap: 6px; flex-wrap: wrap; }
+.stat { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+.stat b { color: var(--text); font-weight: 600; }
+.stat.err b { color: var(--err); } .stat.warn b { color: var(--warn); } .stat.mod b { color: var(--mod); }
+
+.btn { border: 1px solid var(--border-strong); background: var(--panel); padding: 6px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--panel-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.sm { padding: 3px 9px; font-size: 12.5px; border-radius: 6px; }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--panel-2); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+nav.tabs { display: flex; gap: 2px; padding: 0 12px; overflow-x: auto; }
+nav.tabs button { border: 0; background: none; padding: 9px 12px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+nav.tabs .count { font-size: 11px; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+nav.tabs .count.err { background: var(--err-soft); color: var(--err); border-color: transparent; }
+
+main { padding: 16px; max-width: 1500px; margin: 0 auto; }
+.hidden { display: none !important; }
+
+/* drop zone */
+.drop { margin: 8vh auto; max-width: 640px; border: 2px dashed var(--border-strong); border-radius: 14px; padding: 48px 28px; text-align: center; background: var(--panel); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop h1 { font-size: 20px; margin: 0 0 6px; }
+.drop p { color: var(--muted); margin: 6px 0 18px; }
+.drop ul { text-align: left; color: var(--muted); font-size: 13px; max-width: 460px; margin: 22px auto 0; padding-left: 18px; }
+
+/* layout */
+.layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+aside.side { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px; position: sticky; top: 104px; max-height: calc(100vh - 120px); overflow: auto; }
+@media (max-width: 900px) { aside.side { position: static; max-height: none; } }
+.side h4 { margin: 10px 6px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); font-weight: 600; }
+.side h4:first-child { margin-top: 2px; }
+.fbtn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; border: 0; background: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; text-align: left; color: var(--text); }
+.fbtn:hover { background: var(--panel-2); }
+.fbtn.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.fbtn .n { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.fbtn.on .n { color: inherit; }
+.fbtn span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+.toolbar { display: flex; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.search { flex: 1; min-width: 200px; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel); }
+.bulkbar { display: flex; gap: 6px; align-items: center; padding: 8px 10px; background: var(--mod-soft); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.bulkbar .lbl { font-weight: 600; color: var(--mod); margin-right: 6px; }
+
+.tbl-wrap { overflow-x: auto; }
+table.macros { width: 100%; border-collapse: collapse; min-width: 900px; }
+table.macros th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); font-weight: 600; padding: 8px 8px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; }
+table.macros td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.macros tr.tgroup td { background: var(--panel-2); font-weight: 600; font-size: 12.5px; padding: 7px 10px; color: var(--muted); }
+table.macros tr.row:hover td { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+tr.row.mod td:first-child { box-shadow: inset 3px 0 0 var(--mod); }
+tr.row.sel td { background: var(--mod-soft) !important; }
+.mname { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; user-select: all; }
+.mname .tpl { display: block; font-family: var(--sans); font-size: 11px; color: var(--faint); user-select: none; }
+.lock { color: var(--faint); font-size: 11px; margin-left: 4px; user-select: none; }
+td input.val, td input.desc { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); font-family: var(--mono); font-size: 12.5px; }
+td input.desc { font-family: var(--sans); font-size: 13px; color: var(--muted); }
+td input.val:hover, td input.desc:hover { border-color: var(--border-strong); }
+td input.val.changed, td input.desc.changed, td select.changed { border-color: var(--mod); background: var(--mod-soft); }
+td input.val.bad { border-color: var(--err); }
+td input.val.empty::placeholder { color: var(--warn); }
+td select { padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); font-size: 12.5px; }
+.valcell { display: flex; gap: 4px; align-items: center; }
+.eye { border: 0; background: none; cursor: pointer; color: var(--faint); padding: 2px 4px; }
+.uses { border: 1px solid var(--border); background: var(--panel-2); border-radius: 999px; padding: 1px 9px; font-size: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.uses.zero { color: var(--faint); background: transparent; border-style: dashed; }
+.badges { display: flex; gap: 4px; flex-wrap: wrap; }
+.b { font-size: 11px; padding: 1px 7px; border-radius: 999px; white-space: nowrap; cursor: default; }
+.b.err { background: var(--err-soft); color: var(--err); } .b.warn { background: var(--warn-soft); color: var(--warn); } .b.info { background: var(--info-soft); color: var(--info); }
+.b.ok { background: var(--ok-soft); color: var(--ok); } .b.mod { background: var(--mod-soft); color: var(--mod); }
+tr.detail td { background: var(--panel-2); padding: 10px 14px 14px 44px; }
+.detail h5 { margin: 6px 0; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.ref { display: grid; grid-template-columns: 110px minmax(160px, 320px) 1fr; gap: 10px; padding: 4px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+.ref:last-child { border-bottom: 0; }
+.ref .k { color: var(--faint); }
+.ref code { overflow-wrap: anywhere; color: var(--muted); }
+.msgline { font-size: 12.5px; margin: 3px 0; }
+.msgline.err { color: var(--err); } .msgline.warn { color: var(--warn); } .msgline.info { color: var(--info); }
+.empty-state { padding: 40px; text-align: center; color: var(--muted); }
+
+/* issues */
+.issues-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.chip { border: 1px solid var(--border-strong); background: var(--panel); border-radius: 999px; padding: 3px 11px; cursor: pointer; font-size: 12.5px; }
+.chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.issue { background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--info); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; }
+.issue.err { border-left-color: var(--err); } .issue.warn { border-left-color: var(--warn); }
+.issue .t { font-weight: 600; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.issue .cat { font-size: 11px; color: var(--faint); font-weight: 500; text-transform: uppercase; letter-spacing: .05em; }
+.issue .where { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.issue .d { margin-top: 6px; font-size: 13px; }
+.issue .fix { margin-top: 6px; font-size: 13px; color: var(--ok); }
+.issue .acts { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.issue code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.mapping { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 13px; }
+.mapping th, .mapping td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.mapping th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+.mapping td code { overflow-wrap: anywhere; }
+.arrow { color: var(--faint); padding: 0 4px; }
+.strike { text-decoration: line-through; color: var(--err); }
+
+/* batch */
+.batch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .batch-grid { grid-template-columns: 1fr; } }
+.pad { padding: 14px; }
+textarea.paste { width: 100%; min-height: 220px; font-family: var(--mono); font-size: 12.5px; padding: 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--panel); resize: vertical; }
+.hint { color: var(--muted); font-size: 12.5px; }
+.opts { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0; font-size: 13px; align-items: center; }
+.opts label { display: flex; gap: 6px; align-items: center; }
+table.preview { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.preview th, table.preview td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+table.preview th { font-size: 11px; text-transform: uppercase; color: var(--faint); letter-spacing: .05em; }
+table.preview td.v { font-family: var(--mono); overflow-wrap: anywhere; max-width: 260px; }
+
+h2.sec { font-size: 15px; margin: 0 0 4px; }
+.row-flex { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* modal */
+.modal-bg { position: fixed; inset: 0; background: rgba(10,12,16,.45); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; width: min(520px, 100%); padding: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.modal h3 { margin: 0 0 10px; font-size: 16px; }
+.modal label.f { display: block; font-size: 12.5px; color: var(--muted); margin: 10px 0 4px; }
+.modal input[type=text], .modal select { width: 100%; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel); font-family: var(--mono); font-size: 13px; }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; z-index: 60; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+.banner { background: var(--info-soft); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <div class="brand"><span class="logo">{$}</span> Zabbix Macro Manager</div>
+    <span class="file-chip" id="fileChip"></span>
+    <div class="spacer"></div>
+    <div class="stats" id="stats"></div>
+    <button class="btn" id="btnOpen">Open export…</button>
+    <button class="btn primary" id="btnExport" disabled>Download updated JSON</button>
+    <button class="btn ghost" id="btnTheme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+    <input type="file" id="fileInput" accept=".json,application/json" class="hidden">
+  </div>
+  <nav class="tabs hidden" id="tabs" role="tablist">
+    <button role="tab" data-tab="macros" aria-selected="true">Macros <span class="count" id="cMacros"></span></button>
+    <button role="tab" data-tab="batch" aria-selected="false">Batch import / export</button>
+    <button role="tab" data-tab="issues" aria-selected="false">Issues &amp; mappings <span class="count" id="cIssues"></span></button>
+    <button role="tab" data-tab="changes" aria-selected="false">Changes <span class="count" id="cChanges"></span></button>
+  </nav>
+</header>
+
+<main>
+  <div id="dropZone" class="drop">
+    <h1>Load a Zabbix template export</h1>
+    <p>Drop a <code>zbx_export_templates_*.json</code> file here, or choose one. Everything runs locally in your browser; nothing is uploaded.</p>
+    <button class="btn primary" id="btnOpen2">Choose JSON file</button>
+    <ul>
+      <li>Macro <b>names are locked</b>. You can edit values, types and descriptions, but you can't add, delete or rename macros.</li>
+      <li>Bulk edit, find/replace and CSV/TSV import (paste straight from Excel).</li>
+      <li>Checks for broken macro mappings, wrong item value types and invalid values.</li>
+      <li>The export keeps the original file byte-for-byte, except for the fields you changed.</li>
+    </ul>
+  </div>
+
+  <section id="tab-macros" class="hidden">
+    <div id="restoreBanner"></div>
+    <div class="layout">
+      <aside class="side" id="side"></aside>
+      <div class="card">
+        <div class="toolbar">
+          <input class="search" id="search" type="search" placeholder="Search macro, value or description…  ( / )">
+          <label class="hint"><input type="checkbox" id="groupByTpl" checked> Group by template</label>
+        </div>
+        <div class="bulkbar hidden" id="bulkbar">
+          <span class="lbl" id="selCount"></span>
+          <button class="btn sm" data-bulk="value">Set value</button>
+          <button class="btn sm" data-bulk="replace">Find &amp; replace</button>
+          <button class="btn sm" data-bulk="desc">Set description</button>
+          <button class="btn sm" data-bulk="type">Set type</button>
+          <button class="btn sm" data-bulk="clear">Clear value</button>
+          <button class="btn sm" data-bulk="revert">Revert</button>
+          <div class="spacer"></div>
+          <button class="btn sm ghost" data-bulk="none">Deselect</button>
+        </div>
+        <div class="tbl-wrap">
+          <table class="macros">
+            <thead><tr>
+              <th style="width:28px"><input type="checkbox" id="selAll" aria-label="Select all visible"></th>
+              <th style="width:26%">Macro <span class="lock">locked</span></th>
+              <th style="width:24%">Value</th>
+              <th style="width:110px">Type</th>
+              <th>Description</th>
+              <th style="width:60px">Used</th>
+              <th style="width:120px">Checks</th>
+            </tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-batch" class="hidden">
+    <div class="batch-grid">
+      <div class="card pad">
+        <h2 class="sec">Import values (CSV / TSV / paste from Excel)</h2>
+        <p class="hint">The header row must include a <code>macro</code> column plus at least one of <code>value</code>, <code>description</code> or <code>type</code>. An optional <code>template</code> column limits a row to one template. <code>{$ES.HOST}</code> and <code>ES.HOST</code> are both accepted. Rows naming a macro that doesn't exist are <b>rejected</b>, because names can't be created or changed.</p>
+        <div class="row-flex" style="margin:8px 0">
+          <button class="btn sm" id="btnCsvFile">Load CSV file…</button>
+          <button class="btn sm" id="btnSample">Insert example</button>
+          <input type="file" id="csvInput" accept=".csv,.tsv,.txt,text/csv" class="hidden">
+        </div>
+        <textarea class="paste" id="paste" spellcheck="false" placeholder="template,macro,value,description&#10;Elasticsearch Cluster by HTTP SISA,{$ES.CPU.REQUESTED},32,&#10;,{$GRP.CLIENT},ACME,"></textarea>
+        <div class="opts">
+          <label><input type="checkbox" id="optSkipEmpty" checked> Skip empty cells (don't clear existing values)</label>
+          <label><input type="checkbox" id="optOnlyEmpty"> Only fill macros that are currently empty</label>
+        </div>
+        <div class="row-flex">
+          <button class="btn" id="btnPreview">Preview</button>
+          <button class="btn primary" id="btnApply" disabled>Apply changes</button>
+          <span class="hint" id="previewSummary"></span>
+        </div>
+      </div>
+      <div class="card pad">
+        <h2 class="sec">Export</h2>
+        <p class="hint">Download the current macros as CSV, edit them in Excel, then import them again on the left. Use one CSV per client as a reusable profile. Secret values are always left blank in CSV.</p>
+        <div class="row-flex" style="margin:10px 0 18px">
+          <button class="btn" id="btnCsvAll">Download all macros (CSV)</button>
+          <button class="btn" id="btnCsvEmpty">Download only empty macros (CSV)</button>
+          <button class="btn" id="btnCsvChanges">Download change log (CSV)</button>
+        </div>
+        <h2 class="sec">Preview</h2>
+        <div id="preview" class="tbl-wrap"><p class="hint">Paste or load data, then click Preview.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-issues" class="hidden">
+    <div class="issues-head" id="issuesHead"></div>
+    <div id="mappingBox"></div>
+    <div id="issuesList"></div>
+  </section>
+
+  <section id="tab-changes" class="hidden">
+    <div class="card">
+      <div class="toolbar"><b>Pending changes</b><div class="spacer"></div>
+        <button class="btn sm" id="btnRevertAll">Revert all</button>
+        <button class="btn sm primary" id="btnExport2">Download updated JSON</button></div>
+      <div class="tbl-wrap" id="changesList"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/*CORE-START*/
+const MACRO_RX = /\{\$([A-Z0-9_.]+)((?::(?:[^{}"]|"(?:[^"\\]|\\.)*"|\{#[^}]*\})*)?)\}/g;
+const NUMERIC = { UNSIGNED: 1, FLOAT: 1 };
+const DEF_TYPE = 'ZABBIX_PASSIVE', DEF_VT = 'UNSIGNED';
+const vt = it => it.value_type || DEF_VT;
+const itype = it => it.type || DEF_TYPE;
+
+function stripJsComments(s) {
+  return s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(l => !/^\s*\/\//.test(l))
+          .map(l => l.replace(/(^|[^:"'\\])\/\/.*$/, '$1')).join('\n');
+}
+
+/* Parse item references like  last(/Host/key[a,"b"],5m)  or  /*\/key?[filter] */
+function itemRefs(expr) {
+  const out = [];
+  if (!expr) return out;
+  const rx = /\(\s*\/([^\/()]*)\//g;
+  let m;
+  while ((m = rx.exec(expr))) {
+    let i = rx.lastIndex, depth = 0, q = false, key = '';
+    for (; i < expr.length; i++) {
+      const c = expr[i];
+      if (q) { key += c; if (c === '\\') { key += expr[++i] || ''; } else if (c === '"') q = false; continue; }
+      if (c === '"' && depth > 0) { q = true; key += c; continue; }
+      if (c === '[') depth++;
+      if (c === ']') depth--;
+      if (depth === 0 && (c === ',' || c === ')' || c === '?')) break;
+      key += c;
+    }
+    out.push({ host: m[1], key: key.trim(), filtered: expr[i] === '?' });
+  }
+  return out;
+}
+
+function getAt(obj, path) { return path.reduce((o, k) => (o == null ? o : o[k]), obj); }
+
+function index(doc) {
+  const ex = doc.zabbix_export || {};
+  const tpls = ex.templates || [];
+  const tplNames = tpls.map(t => t.template);
+  const refs = [];                // macro references
+  const entities = [];            // items / triggers / etc.
+  const itemMap = {};             // tpl -> key -> entity
+  tplNames.forEach(n => itemMap[n] = new Map());
+
+  function scan(ent, obj, skip, path) {
+    const walk = (o, field, js) => {
+      if (o == null) return;
+      if (Array.isArray(o)) { o.forEach(x => walk(x, field, js)); return; }
+      if (typeof o === 'object') {
+        const isJs = o.type === 'JAVASCRIPT';
+        for (const k of Object.keys(o)) {
+          if (field === '' && skip.includes(k)) continue;
+          walk(o[k], field ? field + '.' + k : k, js || (isJs && k === 'parameters'));
+        }
+        return;
+      }
+      if (typeof o !== 'string') return;
+      const s = js ? stripJsComments(o) : o;
+      let m; MACRO_RX.lastIndex = 0;
+      while ((m = MACRO_RX.exec(s))) {
+        const a = Math.max(0, m.index - 40), b = Math.min(s.length, m.index + m[0].length + 40);
+        refs.push({ base: m[1], full: m[0], ent, field: field.replace(/^preprocessing\.parameters$/, 'preprocessing'), js: !!js,
+          snippet: (a > 0 ? '…' : '') + s.slice(a, b).replace(/\s+/g, ' ') + (b < s.length ? '…' : '') });
+      }
+    };
+    walk(obj, '', false);
+  }
+  function add(kind, obj, path, owners, label, skip = []) {
+    const ent = { kind, obj, path, owners, label, tpl: owners[0] };
+    entities.push(ent);
+    if ((kind === 'item' || kind === 'item prototype' || kind === 'discovery rule') && obj.key && itemMap[owners[0]])
+      itemMap[owners[0]].set(obj.key, ent);
+    scan(ent, obj, skip, path);
+    return ent;
+  }
+  const trigOwners = (expr, fallback) => {
+    const s = new Set(); itemRefs(expr).forEach(r => { if (r.host && r.host !== '*' && tplNames.includes(r.host)) s.add(r.host); });
+    return s.size ? [...s] : fallback;
+  };
+
+  tpls.forEach((t, ti) => {
+    const T = t.template, base = ['zabbix_export', 'templates', ti];
+    add('template', { description: t.description, tags: t.tags }, base, [T], T);
+    (t.items || []).forEach((it, i) => {
+      const p = [...base, 'items', i];
+      add('item', it, p, [T], it.name, ['triggers']);
+      (it.triggers || []).forEach((tr, j) => add('trigger', tr, [...p, 'triggers', j], [T], tr.name));
+    });
+    (t.discovery_rules || []).forEach((r, ri) => {
+      const rp = [...base, 'discovery_rules', ri];
+      add('discovery rule', r, rp, [T], r.name, ['item_prototypes', 'trigger_prototypes', 'graph_prototypes', 'host_prototypes']);
+      (r.item_prototypes || []).forEach((p, pi) => {
+        const pp = [...rp, 'item_prototypes', pi];
+        const e = add('item prototype', p, pp, [T], p.name, ['trigger_prototypes']);
+        e.rule = r.name;
+        (p.trigger_prototypes || []).forEach((tr, j) => add('trigger prototype', tr, [...pp, 'trigger_prototypes', j], [T], tr.name));
+      });
+      (r.trigger_prototypes || []).forEach((tr, j) => add('trigger prototype', tr, [...rp, 'trigger_prototypes', j], trigOwners(tr.expression, [T]), tr.name));
+      (r.graph_prototypes || []).forEach((g, j) => add('graph prototype', g, [...rp, 'graph_prototypes', j], [T], g.name));
+      (r.host_prototypes || []).forEach((h, j) => add('host prototype', h, [...rp, 'host_prototypes', j], [T], h.host));
+    });
+    (t.httptests || []).forEach((h, j) => add('web scenario', h, [...base, 'httptests', j], [T], h.name));
+    (t.dashboards || []).forEach((d, j) => add('dashboard', d, [...base, 'dashboards', j], [T], d.name));
+  });
+  (ex.triggers || []).forEach((tr, i) => add('trigger', tr, ['zabbix_export', 'triggers', i], trigOwners(tr.expression, tplNames.slice(0, 1)), tr.name));
+  (ex.graphs || []).forEach((g, i) => {
+    const s = new Set((g.graph_items || []).map(x => x.item && x.item.host).filter(h => tplNames.includes(h)));
+    add('graph', g, ['zabbix_export', 'graphs', i], s.size ? [...s] : tplNames.slice(0, 1), g.name);
+  });
+  return { tpls, tplNames, refs, entities, itemMap };
+}
+
+/* --- name similarity, used to suggest the macro a broken reference most likely meant --- */
+function lev(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+function isAbbrev(s, l) { if (s[0] !== l[0]) return false; let i = 0; for (const c of l) if (c === s[i]) i++; return i === s.length; }
+function tokSim(a, b) {
+  if (a === b) return 1;
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+  if (s.length >= 2 && l.startsWith(s)) return 0.85;
+  if (s.length >= 2 && isAbbrev(s, l)) return 0.8;
+  return 1 - lev(a, b) / Math.max(a.length, b.length);
+}
+function similarity(a, b) {
+  const A = a.split('.'), B = b.split('.');
+  if (A.length !== B.length) return 0.6 * (1 - lev(a, b) / Math.max(a.length, b.length));
+  return A.reduce((s, t, i) => s + tokSim(t, B[i]), 0) / A.length;
+}
+function suggest(base, candidates) {
+  let best = null, score = 0;
+  for (const c of candidates) { const s = similarity(base, c); if (s > score) { score = s; best = c; } }
+  return score >= 0.75 ? { name: best, score } : null;
+}
+
+/* Structural analysis: depends on the template content only, not on macro values. */
+function analyzeStructure(ix, defined /* Map tpl -> Set(base) */) {
+  const issues = [];
+  const push = (sev, cat, title, o) => issues.push(Object.assign({ sev, cat, title }, o));
+  const where = e => `${e.tpl} › ${e.kind}${e.rule ? ' (' + e.rule + ')' : ''}: ${e.label}${e.obj && e.obj.key ? '  [' + e.obj.key + ']' : ''}`;
+  const allDefined = new Set(); defined.forEach(s => s.forEach(b => allDefined.add(b)));
+
+  // R1 — referenced but not defined in owning template(s)
+  const seen = new Set();
+  for (const r of ix.refs) {
+    const ok = r.ent.owners.some(T => defined.get(T) && defined.get(T).has(r.base));
+    if (ok) continue;
+    const k = r.base + '|' + r.ent.path.join('/') + '|' + r.field;
+    if (seen.has(k)) continue; seen.add(k);
+    const pool = new Set(); r.ent.owners.forEach(T => (defined.get(T) || []).forEach(b => pool.add(b)));
+    const sg = suggest(r.base, pool.size ? pool : allDefined);
+    if (r.js) {
+      push('info', 'undefined-macro', `{$${r.base}} is not defined; the JavaScript falls back to its built-in default`,
+        { where: where(r.ent), detail: `Referenced in ${r.field}. The script uses its default value because the macro is never resolved.`, macro: r.base, ent: r.ent });
+    } else if (sg) {
+      push('err', 'wrong-mapping', `{$${r.base}} doesn't exist. This item most likely meant {$${sg.name}}`,
+        { where: where(r.ent), detail: `Field ${r.field}: <code>${esc(r.snippet)}</code>. Any value you enter for {$${sg.name}} is never read here, so this ${r.ent.kind} uses an empty value.`,
+          fix: `Point the reference at the existing macro {$${sg.name}}. The macro names stay as they are.`, macro: r.base, target: sg.name, ent: r.ent, remap: true });
+    } else {
+      push('warn', 'undefined-macro', `{$${r.base}} is used but not defined in this template`,
+        { where: where(r.ent), detail: `Field ${r.field}: <code>${esc(r.snippet)}</code>. It resolves only if the macro is defined at host or global level.`, macro: r.base, ent: r.ent });
+    }
+  }
+
+  // R2 — defined but not referenced anywhere in its template
+  ix.tpls.forEach(t => (t.macros || []).forEach(m => {
+    const base = m.macro.slice(2, -1).split(':')[0];
+    const used = ix.refs.some(r => r.base === base && r.ent.owners.includes(t.template));
+    if (!used) push('info', 'unused-macro', `${m.macro} is defined but nothing in “${t.template}” uses it`,
+      { where: t.template, detail: 'Its value has no effect unless a linked template or host-level item references it.', macroFull: m.macro, tpl: t.template });
+  }));
+
+  const items = ix.entities.filter(e => e.kind === 'item' || e.kind === 'item prototype');
+  // consumers (for orphan detection)
+  const consumed = new Set();
+  const markExpr = (expr, owners) => itemRefs(expr).forEach(r => {
+    const T = r.host || owners[0]; consumed.add(T + '\u0001' + r.key);
+  });
+  ix.entities.forEach(e => {
+    const o = e.obj;
+    if (e.kind.startsWith('trigger')) { markExpr(o.expression, e.owners); markExpr(o.recovery_expression, e.owners); }
+    if (itype(o) === 'CALCULATED' && o.params) markExpr(o.params, e.owners);
+    if (o.master_item && o.master_item.key) consumed.add(e.tpl + '\u0001' + o.master_item.key);
+    if (e.kind.startsWith('graph')) (o.graph_items || []).forEach(g => g.item && consumed.add((g.item.host || e.tpl) + '\u0001' + g.item.key));
+    if (e.kind === 'dashboard') JSON.stringify(o, (k, v) => { if (v && typeof v === 'object' && v.key && v.host) consumed.add(v.host + '\u0001' + v.key); return v; });
+  });
+
+  const fam = s => {
+    const f = new Set();
+    if (/\bcpu\b/i.test(s)) f.add('CPU');
+    if (/\bmem(ory)?\b/i.test(s)) f.add('memory');
+    if (/disk|\bfs\b|storage|filesystem/i.test(s)) f.add('disk');
+    return f;
+  };
+  const keyFam = k => /^system\.cpu/.test(k) ? 'CPU' : /^vm\.memory/.test(k) ? 'memory' : /^vfs\.(fs|dev|dir)/.test(k) ? 'disk' : null;
+
+  for (const e of items) {
+    const o = e.obj, t = itype(o), v = vt(o), units = o.units || '', key = o.key || '';
+    const W = where(e);
+    const numeric = !!NUMERIC[v];
+    // R8 — master item missing
+    if (t === 'DEPENDENT' && o.master_item && !ix.itemMap[e.tpl].has(o.master_item.key))
+      push('err', 'broken-dependency', `The master item of “${e.label}” doesn't exist`, { where: W, detail: `master_item.key = <code>${esc(o.master_item.key)}</code>`, ent: e });
+
+    // R7 — numeric dependent fed by a regex *filter* step (passes the whole text line through)
+    const pp = o.preprocessing || [];
+    if (t === 'DEPENDENT' && numeric && pp.length && /MATCHES_REGEX$/.test(pp[pp.length - 1].type)) {
+      const mt = o.master_item && ix.itemMap[e.tpl].get(o.master_item.key);
+      const mv = mt ? vt(mt.obj) : '?';
+      if (!NUMERIC[mv]) push('err', 'value-type', `“${e.label}” is Numeric (${v.toLowerCase()}) but receives raw ${mv} text`,
+        { where: W, detail: `The last preprocessing step is <code>${pp[pp.length - 1].type}</code>, which only lets matching values through. A matching line from the ${mv} master item is still text, so Zabbix rejects it and the item becomes unsupported. It never produces a count.`,
+          fix: 'For a count, use a numeric master (e.g. <code>log.count[]</code>/<code>logrt.count[]</code>), or add a step that turns a match into 1. Otherwise change the type to Text.', ent: e });
+    }
+
+    if (t === 'CALCULATED') {
+      const formula = o.params || '';
+      // R14 — calculated formula references an item that doesn't exist in this template
+      itemRefs(formula).forEach(r => {
+        if (r.host === '*' || r.filtered) return;
+        const T = r.host || e.tpl;
+        if (ix.itemMap[T] && !ix.itemMap[T].has(r.key))
+          push('err', 'broken-formula', `“${e.label}” references the missing item ${r.key}`, { where: W, detail: `Formula: <code>${esc(formula)}</code>`, ent: e });
+      });
+      // R6 — name says disk/memory/CPU but formula measures something else
+      const nf = fam(e.label), kf = new Set(itemRefs(formula).map(r => keyFam(r.key)).filter(Boolean));
+      if (nf.size && kf.size && ![...nf].some(x => kf.has(x)))
+        push('err', 'wrong-mapping', `“${e.label}” is a ${[...nf].join('/')} metric but its formula reads ${[...kf].join('/')} data`,
+          { where: W, detail: `Formula: <code>${esc(formula)}</code>`, fix: nf.has('disk') ? 'Use a disk key such as <code>vfs.fs.dependent.size[/,total]</code> / <code>vfs.fs.size[/,used]</code> instead of <code>system.cpu.num</code>.' : 'Point the formula at the matching item key.', ent: e });
+      // R4a — fractional result into an integer item
+      const stripped = formula.replace(/\(\s*\/[^\/()]*\/[^,)]*/g, '(X');
+      if (v === 'UNSIGNED' && (/\bavg\s*\(/.test(formula) || /\//.test(stripped)))
+        push('warn', 'value-type', `“${e.label}” can produce a fractional value but its type is Numeric (unsigned)`,
+          { where: W, detail: `Formula: <code>${esc(formula)}</code>. Results like 42.7 are rejected, so the item goes unsupported.`, fix: 'Set the type of information to Numeric (float).', ent: e });
+    }
+
+    // R4b — percentage / GB units on an integer item
+    if (v === 'UNSIGNED' && /^!?%$/.test(units)) {
+      if (/count|allocated|\bnum\b/i.test(key + ' ' + e.label))
+        push('warn', 'units', `“${e.label}” is a count but its units are “%”`, { where: W, detail: `Key <code>${esc(key)}</code> returns a number of items, not a percentage.`, fix: 'Remove the % unit.', ent: e });
+      else if (t !== 'CALCULATED' || !/\bavg\s*\(|\//.test(o.params || ''))
+        push('warn', 'value-type', `“${e.label}” is a percentage stored as Numeric (unsigned)`, { where: W, detail: `<code>${esc(key)}</code> returns decimals (e.g. 37.52), which an unsigned integer item rejects.`, fix: 'Set the type to Numeric (float).', ent: e });
+    }
+    if (v === 'UNSIGNED' && /^!?(GB|TB|MB)$/i.test(units)) {
+      const jp = pp.find(p => p.type === 'JSONPATH');
+      push('warn', 'value-type', `“${e.label}” reports ${units.replace('!', '')} as Numeric (unsigned)`,
+        { where: W, detail: `Scaled sizes such as 3.25 GB are decimals${jp ? ` (source <code>${esc(jp.parameters[0])}</code>)` : ''}. They'll be rejected or truncated.`, fix: 'Set the type to Numeric (float).', ent: e });
+    }
+
+    // R9 — malformed URL (query string before the path)
+    if (t === 'HTTP_AGENT' && o.url && /\?[^#]*\//.test(o.url.replace(/^\w+:\/\//, '')) && !/\?[^\/]*=.*https?:/.test(o.url))
+      push('err', 'bad-url', `The URL of “${e.label}” has its query string before the path`, { where: W, detail: `<code>${esc(o.url)}</code>. Elasticsearch gets the wrong path and the request fails.`, fix: 'Put the query string after the path, e.g. <code>…:{$ELASTICSEARCH.PORT}/_cluster/stats</code>. For TLS settings use the item’s “Verify peer/host” options.', ent: e });
+
+    // R19 — HTTP collector whose data nobody uses
+    if (t === 'HTTP_AGENT' && !NUMERIC[v] && !consumed.has(e.tpl + '\u0001' + key))
+      push('info', 'orphan', `“${e.label}” polls Elasticsearch but nothing uses the result`, { where: W, detail: 'No dependent item, trigger, graph or dashboard reads it. It only adds load.', ent: e });
+
+    // R10 — literal value that duplicates a macro (macro silently ignored)
+    if (t === 'HTTP_AGENT' && o.url) {
+      for (const m of (ix.tpls.find(x => x.template === e.tpl).macros || [])) {
+        const val = m.value || '';
+        if (val.length < 4 || /^\d+$/.test(val) || /[{}]/.test(val)) continue;
+        const rx = new RegExp('[=/]' + val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=[&?/]|$)');
+        if (rx.test(o.url) && !o.url.includes(m.macro))
+          push('warn', 'hardcoded', `“${e.label}” hard-codes “${val}” instead of using ${m.macro}`,
+            { where: W, detail: `<code>${esc(o.url)}</code>. Changing ${m.macro} has no effect on this item.`, fix: `Replace the literal with ${m.macro}.`, ent: e });
+      }
+    }
+  }
+
+  // R5 — sibling inconsistency (e.g. "Engines Mem Requested" FLOAT vs the others UNSIGNED)
+  const groups = new Map();
+  items.filter(e => e.kind === 'item').forEach(e => {
+    const parts = (e.label || '').split(' ');
+    if (parts.length < 3) return;
+    const k = e.tpl + '\u0001' + parts.slice(1).join(' ').toLowerCase();
+    (groups.get(k) || groups.set(k, []).get(k)).push(e);
+  });
+  for (const [, g] of groups) {
+    if (g.length < 3) continue;
+    for (const [prop, get] of [['type of information', e => vt(e.obj)], ['units', e => e.obj.units || '(none)']]) {
+      const counts = {}; g.forEach(e => counts[get(e)] = (counts[get(e)] || 0) + 1);
+      const maj = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+      if (maj[1] <= g.length / 2) continue;
+      g.filter(e => get(e) !== maj[0]).forEach(e => push('warn', 'inconsistent', `“${e.label}”: ${prop} is ${get(e)} but its siblings use ${maj[0]}`,
+        { where: where(e), detail: 'Siblings: ' + g.map(x => `${x.label} = ${get(x)}`).join('; '), ent: e }));
+    }
+  }
+
+  // R11 — duplicate triggers
+  const tk = new Map();
+  ix.entities.filter(e => e.kind.startsWith('trigger')).forEach(e => {
+    const k = e.obj.expression.replace(/\s+/g, '');
+    if (tk.has(k)) push('warn', 'duplicate', `Duplicate trigger: “${e.label}” has the same expression as “${tk.get(k).label}”`,
+      { where: where(e), detail: `<code>${esc(e.obj.expression)}</code>. Two problems fire for one condition.`, fix: 'Delete one of them.', ent: e });
+    else tk.set(k, e);
+  });
+  return issues;
+}
+
+/* Value analysis: runs on every edit. */
+function analyzeValues(macros, ix) {
+  const out = new Map(); // macro id -> [{sev,msg}]
+  const add = (m, sev, msg) => (out.get(m.id) || out.set(m.id, []).get(m.id)).push({ sev, msg });
+  const byTpl = new Map();
+  macros.forEach(m => (byTpl.get(m.tpl) || byTpl.set(m.tpl, new Map()).get(m.tpl)).set(m.base, m));
+  // direct consumers: calculated items whose whole formula is the macro
+  const binds = new Map();
+  ix.entities.forEach(e => {
+    const o = e.obj;
+    if ((e.kind === 'item' || e.kind === 'item prototype') && itype(o) === 'CALCULATED') {
+      const mm = /^\s*\{\$([A-Z0-9_.]+)\}\s*$/.exec(o.params || '');
+      if (mm) { const k = e.tpl + '\u0001' + mm[1]; (binds.get(k) || binds.set(k, []).get(k)).push(e); }
+    }
+  });
+  const num = s => /^-?\d+(\.\d+)?$/.test(s);
+  const numU = s => /^-?\d+(\.\d+)?[KMGTsmhdw]?$/.test(s);
+  for (const m of macros) {
+    const v = m.cur.value, n = m.base, uses = m.uses;
+    if (m.cur.type === 'SECRET_TEXT' || m.cur.type === 'VAULT') {
+      if (v === '' && uses) add(m, 'info', 'Secret is empty. Set it here or at host level; exports don’t include stored secrets.');
+      continue;
+    }
+    const b = binds.get(m.tpl + '\u0001' + n) || [];
+    for (const e of b) {
+      const t = vt(e.obj);
+      if (v === '') add(m, 'err', `Empty: calculated item “${e.label}” (${e.obj.key}) becomes unsupported until a value is set.`);
+      else if (!num(v)) add(m, 'err', `“${v}” isn’t a number, but “${e.label}” evaluates it as its formula.`);
+      else if (t === 'UNSIGNED' && !/^\d+$/.test(v)) add(m, 'err', `“${e.label}” is Numeric (unsigned); ${v} needs Numeric (float) or a whole number.`);
+    }
+    if (v === '' && uses && !b.length) add(m, 'warn', `Empty, but it's referenced ${uses}×.`);
+    if (/<[^>]*>/.test(v) || /^SET /i.test(v)) add(m, 'err', 'Still contains the placeholder value.');
+    if (v !== '' && !/\{/.test(v)) {
+      if (/\.PORT$/.test(n) && !(/^\d+$/.test(v) && +v > 0 && +v < 65536)) add(m, 'err', 'Port must be 1–65535.');
+      if (/\.SCHEME$/.test(n) && !/^https?$/.test(v)) add(m, 'err', 'Scheme must be http or https.');
+      if (/(TIMEOUT|INTERVAL|NODATA|FUZZYTIME|RESPONSE_TIME)/.test(n) && !/^\d+[smhdw]?$/.test(v)) add(m, 'warn', 'Expected a time value like 30s, 5m, 1h.');
+      if (/(MATCHES|REGEX)$/.test(n)) { try { new RegExp(v); } catch (x) { add(m, 'warn', 'Not a valid regular expression: ' + x.message); } }
+      if (/\.(WARN|CRIT|L\d|VMAX|MAX|MIN|FACTOR|DAYS|REQUESTED|PURCHASED)$/.test(n) && !numU(v) && !b.length) add(m, 'warn', 'Expected a numeric threshold.');
+    }
+  }
+  // ordering checks: WARN vs CRIT, L1<L2<L3, MIN<MAX
+  for (const [, mp] of byTpl) {
+    const val = b => { const m = mp.get(b); return m && num(m.cur.value) ? +m.cur.value : null; };
+    for (const [b, m] of mp) {
+      let r;
+      if ((r = /^(.*\.MAX)\.WARN$/.exec(b))) { const w = val(b), c = val(r[1] + '.CRIT'); if (w != null && c != null && w >= c) add(m, 'warn', `WARN (${w}) should be lower than CRIT (${c}).`); }
+      if ((r = /^(.*\.MIN)\.WARN$/.exec(b))) { const w = val(b), c = val(r[1] + '.CRIT'); if (w != null && c != null && w <= c) add(m, 'warn', `WARN (${w}) should be higher than CRIT (${c}) for a minimum threshold.`); }
+      if ((r = /^(.*)\.L(\d)$/.exec(b)) && +r[2] > 1) { const p = val(r[1] + '.L' + (r[2] - 1)), c = val(b); if (p != null && c != null && c <= p) add(m, 'warn', `L${r[2]} (${c}) should be higher than L${r[2] - 1} (${p}).`); }
+      if ((r = /^(.*)\.MAX\.(.*)$/.exec(b)) || (r = /^(.*)\.MAX$/.exec(b))) {
+        const minB = b.replace('.MAX', '.MIN'); const lo = val(minB), hi = val(b);
+        if (mp.has(minB) && lo != null && hi != null && lo >= hi) add(m, 'warn', `MAX (${hi}) should be higher than ${minB.split('.').pop() === 'MIN' ? 'MIN' : '{$' + minB + '}'} (${lo}).`);
+      }
+    }
+  }
+  return out;
+}
+
+function remapEntity(obj, from, to) {
+  const rx = new RegExp('\\{\\$' + from.replace(/\./g, '\\.') + '(?=[}:])', 'g');
+  const walk = o => {
+    if (Array.isArray(o)) return o.map(walk);
+    if (o && typeof o === 'object') { for (const k of Object.keys(o)) o[k] = walk(o[k]); return o; }
+    return typeof o === 'string' ? o.replace(rx, '{$' + to) : o;
+  };
+  walk(obj);
+}
+
+function canonicalMacro(orig, cur) {
+  if (orig.type === undefined ? cur.type === 'TEXT' : orig.type === cur.type)
+    if ((orig.value || '') === cur.value && (orig.description || '') === cur.description) return orig;
+  const o = { macro: orig.macro };
+  if (cur.type !== 'TEXT') o.type = cur.type;
+  if (cur.value !== '') o.value = cur.value;
+  if (cur.description !== '') o.description = cur.description;
+  for (const k of Object.keys(orig)) if (!(k in o) && !['type', 'value', 'description'].includes(k)) o[k] = orig[k];
+  return o;
+}
+
+function buildExport(raw, macros, remaps) {
+  const doc = JSON.parse(JSON.stringify(raw));
+  for (const r of remaps) { const e = getAt(doc, r.path); if (e) remapEntity(e, r.from, r.to); }
+  for (const m of macros) doc.zabbix_export.templates[m.ti].macros[m.mi] = canonicalMacro(m.origObj, m.cur);
+  return doc;
+}
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+/*CORE-END*/
+
+/* ======================= UI ======================= */
+const $ = s => document.querySelector(s);
+const S = {
+  raw: null, fileName: '', text: '', macros: [], byId: new Map(), remaps: [],
+  ix: null, structIssues: [], valIssues: new Map(),
+  filter: { tpl: null, quick: 'all', prefix: null, q: '' }, sel: new Set(), open: new Set(),
+  tab: 'macros', issueFilter: 'all', preview: null,
+};
+const TYPES = ['TEXT', 'SECRET_TEXT', 'VAULT'];
+const TYPE_LABEL = { TEXT: 'Text', SECRET_TEXT: 'Secret', VAULT: 'Vault' };
+
+function toast(msg) {
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+}
+function storeKey() { return 'zmm:' + S.fileName + ':' + S.text.length; }
+function saveDraft() {
+  try {
+    const edits = {};
+    S.macros.forEach(m => { if (isMod(m)) edits[m.id] = m.cur.type === 'TEXT' ? m.cur : Object.assign({}, m.cur, { value: m.orig.value }); });
+    const data = { edits, remaps: S.remaps.map(r => ({ path: r.path, from: r.from, to: r.to })) };
+    if (Object.keys(edits).length || S.remaps.length) localStorage.setItem(storeKey(), JSON.stringify(data));
+    else localStorage.removeItem(storeKey());
+  } catch (e) { /* storage unavailable */ }
+}
+function loadDraft() { try { return JSON.parse(localStorage.getItem(storeKey()) || 'null'); } catch (e) { return null; } }
+
+const isMod = m => m.cur.value !== m.orig.value || m.cur.type !== m.orig.type || m.cur.description !== m.orig.description;
+
+function loadText(text, name) {
+  let raw;
+  try { raw = JSON.parse(text); } catch (e) { toast('Not valid JSON: ' + e.message); return; }
+  if (!raw.zabbix_export || !Array.isArray(raw.zabbix_export.templates)) { toast('This is not a Zabbix template export (zabbix_export.templates missing).'); return; }
+  Object.assign(S, { raw, text, fileName: name, remaps: [], sel: new Set(), open: new Set(), preview: null });
+  S.macros = [];
+  raw.zabbix_export.templates.forEach((t, ti) => (t.macros || []).forEach((mo, mi) => {
+    const orig = { type: mo.type || 'TEXT', value: mo.value || '', description: mo.description || '' };
+    const base = mo.macro.slice(2, -1).split(':')[0];
+    S.macros.push({ id: t.template + '\u0001' + mo.macro, tpl: t.template, ti, mi, name: mo.macro, base, origObj: mo, orig, cur: Object.assign({}, orig), uses: 0 });
+  }));
+  S.byId = new Map(S.macros.map(m => [m.id, m]));
+  reindex();
+  $('#dropZone').classList.add('hidden'); $('#tabs').classList.remove('hidden');
+  $('#fileChip').textContent = name; $('#btnExport').disabled = false;
+  const d = loadDraft();
+  const rb = $('#restoreBanner'); rb.innerHTML = '';
+  if (d && (Object.keys(d.edits || {}).length || (d.remaps || []).length)) {
+    rb.innerHTML = `<div class="banner">You have ${Object.keys(d.edits || {}).length} unsaved macro edit(s) and ${(d.remaps || []).length} reference fix(es) from an earlier session on this file.
+      <button class="btn sm primary" id="rbYes">Restore</button><button class="btn sm" id="rbNo">Discard</button></div>`;
+    $('#rbYes').onclick = () => {
+      for (const [id, cur] of Object.entries(d.edits || {})) { const m = S.byId.get(id); if (m) m.cur = Object.assign({}, m.cur, cur); }
+      S.remaps = (d.remaps || []).filter(r => getAt(S.raw, r.path)); reindex(); rb.innerHTML = ''; refresh(); toast('Draft restored');
+    };
+    $('#rbNo').onclick = () => { try { localStorage.removeItem(storeKey()); } catch (e) {} rb.innerHTML = ''; };
+  }
+  showTab('macros'); refresh();
+}
+
+function effectiveDoc() {
+  if (!S.remaps.length) return S.raw;
+  const doc = JSON.parse(JSON.stringify(S.raw));
+  for (const r of S.remaps) { const e = getAt(doc, r.path); if (e) remapEntity(e, r.from, r.to); }
+  return doc;
+}
+function reindex() {
+  S.ix = index(effectiveDoc());
+  const defined = new Map(); S.ix.tpls.forEach(t => defined.set(t.template, new Set((t.macros || []).map(m => m.macro.slice(2, -1).split(':')[0]))));
+  S.macros.forEach(m => m.uses = S.ix.refs.filter(r => r.base === m.base && r.ent.owners.includes(m.tpl)).length);
+  S.structIssues = analyzeStructure(S.ix, defined);
+  S.valIssues = analyzeValues(S.macros, S.ix);
+}
+let vTimer;
+function revalidate(now) {
+  clearTimeout(vTimer);
+  const run = () => { S.valIssues = analyzeValues(S.macros, S.ix); updateRowBadges(); renderStats(); renderSide(); if (S.tab === 'issues') renderIssues(); saveDraft(); };
+  now ? run() : (vTimer = setTimeout(run, 200));
+}
+
+/* ---------- stats / tabs ---------- */
+function allIssues() {
+  const list = S.structIssues.slice();
+  S.valIssues.forEach((arr, id) => { const m = S.byId.get(id); arr.forEach(x => list.push({ sev: x.sev, cat: 'macro-value', title: `${m.name}: ${x.msg}`, where: m.tpl, macroId: id })); });
+  return list;
+}
+function renderStats() {
+  const iss = allIssues(), e = iss.filter(i => i.sev === 'err').length, w = iss.filter(i => i.sev === 'warn').length;
+  const mod = S.macros.filter(isMod).length + S.remaps.length;
+  const empty = S.macros.filter(m => m.cur.value === '' && m.cur.type === 'TEXT').length;
+  $('#stats').innerHTML = `<span class="stat"><b>${S.macros.length}</b> macros</span><span class="stat warn"><b>${empty}</b> empty</span>
+    <span class="stat err"><b>${e}</b> errors</span><span class="stat warn"><b>${w}</b> warnings</span><span class="stat mod"><b>${mod}</b> changed</span>`;
+  $('#cMacros').textContent = S.macros.length;
+  const ci = $('#cIssues'); ci.textContent = e + w; ci.className = 'count' + (e ? ' err' : '');
+  $('#cChanges').textContent = mod;
+}
+function showTab(t) {
+  S.tab = t;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+  ['macros', 'batch', 'issues', 'changes'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
+  if (t === 'issues') renderIssues();
+  if (t === 'changes') renderChanges();
+}
+
+/* ---------- sidebar ---------- */
+const prefixOf = m => m.base.split('.')[0];
+function quickMatch(m, q) {
+  const iss = S.valIssues.get(m.id) || [];
+  switch (q) {
+    case 'empty': return m.cur.value === '' && m.cur.type === 'TEXT';
+    case 'mod': return isMod(m);
+    case 'issues': return iss.some(x => x.sev !== 'info') || S.structIssues.some(i => i.macroFull === m.name && i.tpl === m.tpl && i.sev !== 'info');
+    case 'unused': return m.uses === 0;
+    case 'secret': return m.cur.type !== 'TEXT';
+    default: return true;
+  }
+}
+function renderSide() {
+  const f = S.filter;
+  const inTpl = S.macros.filter(m => !f.tpl || m.tpl === f.tpl);
+  const q = [['all', 'All macros'], ['empty', 'Empty values'], ['issues', 'Has problems'], ['mod', 'Changed'], ['unused', 'Not used'], ['secret', 'Secret / vault']];
+  let h = '<h4>Show</h4>' + q.map(([k, l]) => `<button class="fbtn${f.quick === k ? ' on' : ''}" data-q="${k}"><span>${l}</span><span class="n">${inTpl.filter(m => quickMatch(m, k)).length}</span></button>`).join('');
+  h += '<h4>Template</h4>' + `<button class="fbtn${!f.tpl ? ' on' : ''}" data-t=""><span>All templates</span><span class="n">${S.macros.length}</span></button>`;
+  h += S.ix.tplNames.map(t => `<button class="fbtn${f.tpl === t ? ' on' : ''}" data-t="${esc(t)}" title="${esc(t)}"><span>${esc(t)}</span><span class="n">${S.macros.filter(m => m.tpl === t).length}</span></button>`).join('');
+  const px = {}; inTpl.forEach(m => px[prefixOf(m)] = (px[prefixOf(m)] || 0) + 1);
+  h += '<h4>Prefix</h4>' + `<button class="fbtn${!f.prefix ? ' on' : ''}" data-p=""><span>Any</span></button>`;
+  h += Object.keys(px).sort().map(p => `<button class="fbtn${f.prefix === p ? ' on' : ''}" data-p="${esc(p)}"><span class="mono">${esc(p)}.*</span><span class="n">${px[p]}</span></button>`).join('');
+  $('#side').innerHTML = h;
+}
+$('#side').addEventListener('click', e => {
+  const b = e.target.closest('.fbtn'); if (!b) return;
+  if (b.dataset.q !== undefined) S.filter.quick = b.dataset.q;
+  if (b.dataset.t !== undefined) { S.filter.tpl = b.dataset.t || null; S.filter.prefix = null; }
+  if (b.dataset.p !== undefined) S.filter.prefix = b.dataset.p || null;
+  renderSide(); renderTable();
+});
+
+/* ---------- table ---------- */
+function visible() {
+  const f = S.filter, q = f.q.toLowerCase();
+  return S.macros.filter(m => (!f.tpl || m.tpl === f.tpl) && (!f.prefix || prefixOf(m) === f.prefix) && quickMatch(m, f.quick) &&
+    (!q || m.name.toLowerCase().includes(q) || (m.cur.type === 'TEXT' && m.cur.value.toLowerCase().includes(q)) || m.cur.description.toLowerCase().includes(q)));
+}
+function badgesFor(m) {
+  const iss = S.valIssues.get(m.id) || [];
+  const e = iss.filter(x => x.sev === 'err').length, w = iss.filter(x => x.sev === 'warn').length;
+  const wrong = S.structIssues.filter(i => i.cat === 'wrong-mapping' && i.target === m.base && i.ent && i.ent.owners.includes(m.tpl)).length;
+  let h = '';
+  if (e) h += `<span class="b err" title="${esc(iss.filter(x => x.sev === 'err').map(x => x.msg).join('\n'))}">${e} error${e > 1 ? 's' : ''}</span>`;
+  if (w) h += `<span class="b warn" title="${esc(iss.filter(x => x.sev === 'warn').map(x => x.msg).join('\n'))}">${w} warn</span>`;
+  if (wrong) h += `<span class="b err" title="An item references a misspelled version of this macro, so this value is ignored there">mis-mapped</span>`;
+  if (!m.uses) h += `<span class="b info" title="Nothing in this template references it">unused</span>`;
+  if (isMod(m)) h += `<span class="b mod">edited</span>`;
+  if (!h) h = `<span class="b ok">ok</span>`;
+  return h;
+}
+function rowHtml(m, showTpl) {
+  const sec = m.cur.type !== 'TEXT';
+  const bad = (S.valIssues.get(m.id) || []).some(x => x.sev === 'err');
+  return `<tr class="row${isMod(m) ? ' mod' : ''}${S.sel.has(m.id) ? ' sel' : ''}" data-id="${esc(m.id)}">
+    <td><input type="checkbox" class="rsel" ${S.sel.has(m.id) ? 'checked' : ''} aria-label="Select ${esc(m.name)}"></td>
+    <td><span class="mname">${esc(m.name)}</span>${showTpl ? `<span class="mname"><span class="tpl">${esc(m.tpl)}</span></span>` : ''}</td>
+    <td><div class="valcell"><input class="val${m.cur.value !== m.orig.value ? ' changed' : ''}${m.cur.value === '' ? ' empty' : ''}${bad ? ' bad' : ''}" type="${sec ? 'password' : 'text'}"
+      value="${esc(m.cur.value)}" placeholder="${sec ? 'secret (not exported)' : 'empty'}" spellcheck="false" autocomplete="off" title="${esc(m.cur.type === 'TEXT' ? m.cur.value : '')}">
+      ${sec ? '<button class="eye" title="Show / hide">👁</button>' : ''}</div></td>
+    <td><select class="typ${m.cur.type !== m.orig.type ? ' changed' : ''}">${TYPES.map(t => `<option value="${t}"${t === m.cur.type ? ' selected' : ''}>${TYPE_LABEL[t]}</option>`).join('')}</select></td>
+    <td><input class="desc${m.cur.description !== m.orig.description ? ' changed' : ''}" type="text" value="${esc(m.cur.description)}" placeholder="—" title="${esc(m.cur.description)}"></td>
+    <td><button class="uses${m.uses ? '' : ' zero'}" title="Show where it is used">${m.uses}</button></td>
+    <td><div class="badges">${badgesFor(m)}</div></td></tr>` + (S.open.has(m.id) ? detailHtml(m) : '');
+}
+function detailHtml(m) {
+  const refs = S.ix.refs.filter(r => r.base === m.base && r.ent.owners.includes(m.tpl));
+  const iss = S.valIssues.get(m.id) || [];
+  const wrong = S.structIssues.filter(i => i.cat === 'wrong-mapping' && i.target === m.base && i.ent && i.ent.owners.includes(m.tpl));
+  let h = `<tr class="detail" data-for="${esc(m.id)}"><td colspan="7"><div class="detail">`;
+  if (iss.length || wrong.length) {
+    h += '<h5>Checks</h5>' + iss.map(x => `<div class="msgline ${x.sev}">● ${esc(x.msg)}</div>`).join('');
+    h += wrong.map(i => `<div class="msgline err">● ${i.ent.kind} “${esc(i.ent.label)}” reads <code>{$${esc(i.macro)}</code>, not this macro, so this value is ignored there. Fix it in the Issues tab.</div>`).join('');
+  }
+  h += `<h5>Used by (${refs.length})</h5>`;
+  h += refs.length ? refs.map(r => `<div class="ref"><span class="k">${esc(r.ent.kind)}</span><span>${esc(r.ent.label)}<br><span class="k">${esc(r.field)}</span></span><code>${esc(r.snippet)}</code></div>`).join('')
+    : '<div class="hint">Nothing in this template references this macro.</div>';
+  if (m.orig.value !== m.cur.value && m.cur.type === 'TEXT') h += `<h5>Original value</h5><code>${esc(m.orig.value || '(empty)')}</code>`;
+  return h + '</div></td></tr>';
+}
+function renderTable() {
+  const rows = visible(), grp = $('#groupByTpl').checked && !S.filter.tpl;
+  let h = '', last = null;
+  for (const m of rows) {
+    if (grp && m.tpl !== last) { h += `<tr class="tgroup"><td colspan="7">${esc(m.tpl)}</td></tr>`; last = m.tpl; }
+    h += rowHtml(m, !grp && !S.filter.tpl);
+  }
+  $('#tbody').innerHTML = h || `<tr><td colspan="7"><div class="empty-state">No macros match these filters.</div></td></tr>`;
+  updateBulk();
+}
+function updateRowBadges() {
+  document.querySelectorAll('#tbody tr.row').forEach(tr => {
+    const m = S.byId.get(tr.dataset.id);
+    tr.querySelector('.badges').innerHTML = badgesFor(m);
+    tr.classList.toggle('mod', isMod(m));
+    const v = tr.querySelector('input.val');
+    v.classList.toggle('changed', m.cur.value !== m.orig.value); v.classList.toggle('empty', m.cur.value === '');
+    v.classList.toggle('bad', (S.valIssues.get(m.id) || []).some(x => x.sev === 'err'));
+    tr.querySelector('input.desc').classList.toggle('changed', m.cur.description !== m.orig.description);
+    const d = document.querySelector(`tr.detail[data-for="${CSS.escape(m.id)}"]`);
+    if (d) d.outerHTML = detailHtml(m);
+  });
+}
+function updateBulk() {
+  const n = S.sel.size;
+  $('#bulkbar').classList.toggle('hidden', !n);
+  $('#selCount').textContent = `${n} selected`;
+  const vis = visible();
+  $('#selAll').checked = vis.length > 0 && vis.every(m => S.sel.has(m.id));
+}
+const tbody = $('#tbody');
+tbody.addEventListener('input', e => {
+  const tr = e.target.closest('tr.row'); if (!tr) return; const m = S.byId.get(tr.dataset.id);
+  if (e.target.classList.contains('val')) m.cur.value = e.target.value;
+  if (e.target.classList.contains('desc')) m.cur.description = e.target.value;
+  revalidate();
+});
+tbody.addEventListener('change', e => {
+  const tr = e.target.closest('tr.row'); if (!tr) return; const m = S.byId.get(tr.dataset.id);
+  if (e.target.classList.contains('typ')) { m.cur.type = e.target.value; revalidate(true); renderTable(); }
+  if (e.target.classList.contains('rsel')) { e.target.checked ? S.sel.add(m.id) : S.sel.delete(m.id); tr.classList.toggle('sel', e.target.checked); updateBulk(); }
+});
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr.row'); if (!tr) return; const id = tr.dataset.id;
+  if (e.target.closest('.uses')) { S.open.has(id) ? S.open.delete(id) : S.open.add(id); renderTable(); }
+  if (e.target.closest('.eye')) { const i = tr.querySelector('input.val'); i.type = i.type === 'password' ? 'text' : 'password'; }
+});
+tbody.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const inp = e.target; if (!inp.matches('input.val, input.desc')) return;
+  const cls = inp.classList.contains('val') ? 'input.val' : 'input.desc';
+  const all = [...tbody.querySelectorAll(cls)], i = all.indexOf(inp);
+  const nx = all[i + (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey) ? -1 : 1)];
+  if (nx) { e.preventDefault(); nx.focus(); nx.select(); }
+});
+$('#selAll').addEventListener('change', e => { visible().forEach(m => e.target.checked ? S.sel.add(m.id) : S.sel.delete(m.id)); renderTable(); });
+$('#search').addEventListener('input', e => { S.filter.q = e.target.value; renderTable(); });
+$('#groupByTpl').addEventListener('change', renderTable);
+document.addEventListener('keydown', e => { if (e.key === '/' && !e.target.matches('input,textarea,select') && S.raw) { e.preventDefault(); showTab('macros'); $('#search').focus(); } });
+
+/* ---------- bulk actions ---------- */
+function modal(title, fields, onOk) {
+  const bg = document.createElement('div'); bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h3>${title}</h3>${fields}<div class="acts"><button class="btn" data-x>Cancel</button><button class="btn primary" data-ok>Apply</button></div></div>`;
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  bg.addEventListener('click', e => { if (e.target === bg || e.target.hasAttribute('data-x')) close(); });
+  bg.querySelector('[data-ok]').onclick = () => { if (onOk(bg) !== false) close(); };
+  bg.addEventListener('keydown', e => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && e.target.tagName === 'INPUT') bg.querySelector('[data-ok]').click(); });
+  const f = bg.querySelector('input,select'); if (f) setTimeout(() => f.focus(), 10);
+}
+function applyBulk(fn) {
+  let n = 0; [...S.sel].forEach(id => { const m = S.byId.get(id); const before = JSON.stringify(m.cur); fn(m); if (JSON.stringify(m.cur) !== before) n++; });
+  revalidate(true); renderTable(); toast(`${n} macro(s) updated`);
+}
+$('#bulkbar').addEventListener('click', e => {
+  const a = e.target.dataset.bulk; if (!a) return;
+  const n = S.sel.size;
+  if (a === 'none') { S.sel.clear(); renderTable(); return; }
+  if (a === 'value') modal(`Set value on ${n} macro(s)`, `<label class="f">New value</label><input type="text" id="mv" spellcheck="false">
+      <label class="f"><input type="checkbox" id="mOnlyEmpty"> Only where the value is currently empty</label>`,
+    bg => { const v = bg.querySelector('#mv').value, oe = bg.querySelector('#mOnlyEmpty').checked; applyBulk(m => { if (!oe || m.cur.value === '') m.cur.value = v; }); });
+  if (a === 'desc') modal(`Set description on ${n} macro(s)`, `<label class="f">Description</label><input type="text" id="md">`,
+    bg => { const v = bg.querySelector('#md').value; applyBulk(m => m.cur.description = v); });
+  if (a === 'type') modal(`Set type on ${n} macro(s)`, `<label class="f">Type</label><select id="mt">${TYPES.map(t => `<option value="${t}">${TYPE_LABEL[t]}</option>`).join('')}</select>`,
+    bg => { const v = bg.querySelector('#mt').value; applyBulk(m => m.cur.type = v); });
+  if (a === 'clear') applyBulk(m => m.cur.value = '');
+  if (a === 'revert') applyBulk(m => m.cur = Object.assign({}, m.orig));
+  if (a === 'replace') modal(`Find & replace in ${n} macro value(s)`, `<label class="f">Find</label><input type="text" id="mf" spellcheck="false">
+      <label class="f">Replace with</label><input type="text" id="mr" spellcheck="false">
+      <label class="f"><input type="checkbox" id="mx"> Regular expression</label>
+      <label class="f"><input type="checkbox" id="mdsc"> Also in descriptions</label>`,
+    bg => {
+      const f = bg.querySelector('#mf').value, r = bg.querySelector('#mr').value; if (!f) return false;
+      let rx; try { rx = bg.querySelector('#mx').checked ? new RegExp(f, 'g') : new RegExp(f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'); } catch (x) { toast('Invalid regex'); return false; }
+      const d = bg.querySelector('#mdsc').checked;
+      applyBulk(m => { m.cur.value = m.cur.value.replace(rx, r); if (d) m.cur.description = m.cur.description.replace(rx, r); });
+    });
+});
+
+/* ---------- issues ---------- */
+const CAT_LABEL = { 'wrong-mapping': 'Wrong mapping', 'value-type': 'Item value type', units: 'Units', inconsistent: 'Inconsistent', 'bad-url': 'Bad URL',
+  'broken-dependency': 'Broken dependency', 'broken-formula': 'Broken formula', hardcoded: 'Hard-coded', duplicate: 'Duplicate', orphan: 'Unused collector',
+  'undefined-macro': 'Undefined macro', 'unused-macro': 'Unused macro', 'macro-value': 'Macro value' };
+function renderIssues() {
+  const iss = allIssues(), sevOrder = { err: 0, warn: 1, info: 2 };
+  const cats = {}; iss.forEach(i => cats[i.cat] = (cats[i.cat] || 0) + 1);
+  const f = S.issueFilter;
+  const sevCount = s => iss.filter(i => i.sev === s).length;
+  $('#issuesHead').innerHTML = [['all', `All (${iss.length})`], ['err', `Errors (${sevCount('err')})`], ['warn', `Warnings (${sevCount('warn')})`], ['info', `Info (${sevCount('info')})`]]
+    .map(([k, l]) => `<button class="chip${f === k ? ' on' : ''}" data-f="${k}">${l}</button>`).join('') + '<span class="spacer"></span>' +
+    Object.keys(cats).sort().map(c => `<button class="chip${f === c ? ' on' : ''}" data-f="${c}">${CAT_LABEL[c] || c} · ${cats[c]}</button>`).join('');
+
+  // mapping table — the headline view the user asked for
+  const wrong = iss.filter(i => i.cat === 'wrong-mapping' || (i.cat === 'value-type') || i.cat === 'units' || i.cat === 'inconsistent');
+  const remapRows = iss.filter(i => i.remap);
+  let mb = '';
+  if (f === 'all' || f === 'wrong-mapping') {
+    mb += `<div class="card pad" style="margin-bottom:14px"><h2 class="sec">Incorrect macro → item mappings</h2>
+      <p class="hint">These items read a macro name that doesn't exist, so the value you enter in the defined macro never reaches them. Click <b>Fix reference</b> to point the item at the existing macro. Macro names don't change.</p>`;
+    mb += remapRows.length ? `<div class="tbl-wrap"><table class="mapping"><thead><tr><th>Item</th><th>Item reads (wrong)</th><th></th><th>Defined macro (correct)</th><th>Current value</th><th></th></tr></thead><tbody>` +
+      remapRows.map(i => { const m = S.macros.find(x => x.base === i.target && i.ent.owners.includes(x.tpl));
+        return `<tr><td>${esc(i.ent.label)}<br><code class="hint">${esc(i.ent.obj.key || '')}</code></td><td><code class="strike">{$${esc(i.macro)}}</code></td><td class="arrow">→</td>
+          <td><code>{$${esc(i.target)}}</code></td><td><code>${m ? esc(m.cur.value || '(empty)') : '—'}</code></td>
+          <td><button class="btn sm primary" data-remap="${esc(i.ent.path.join('/'))}|${esc(i.macro)}|${esc(i.target)}">Fix reference</button></td></tr>`; }).join('') + '</tbody></table></div>'
+      : '<p class="hint">✓ Every item references a macro that exists.</p>';
+    if (S.remaps.length) mb += `<p class="hint">${S.remaps.length} reference fix(es) applied. Undo them in the Changes tab.</p>`;
+    mb += '</div>';
+  }
+  if (f === 'all' || f === 'value-type') {
+    const vtRows = iss.filter(i => i.ent && (i.cat === 'value-type'));
+    if (vtRows.length) mb += `<div class="card pad" style="margin-bottom:14px"><h2 class="sec">Incorrect item types</h2><div class="tbl-wrap"><table class="mapping"><thead><tr><th>Template</th><th>Item</th><th>Key</th><th>Item type</th><th>Type of information</th><th>Units</th><th>Problem</th></tr></thead><tbody>` +
+      vtRows.map(i => `<tr><td>${esc(i.ent.tpl)}</td><td>${esc(i.ent.label)}</td><td><code>${esc(i.ent.obj.key)}</code></td><td>${esc(itype(i.ent.obj))}</td><td><b>${esc(vt(i.ent.obj))}</b></td><td>${esc(i.ent.obj.units || '')}</td><td>${i.fix || ''}</td></tr>`).join('') + '</tbody></table></div></div>';
+  }
+  $('#mappingBox').innerHTML = mb;
+
+  const list = iss.filter(i => f === 'all' || i.sev === f || i.cat === f).sort((a, b) => sevOrder[a.sev] - sevOrder[b.sev] || a.cat.localeCompare(b.cat));
+  $('#issuesList').innerHTML = list.map(i => `<div class="issue ${i.sev}"><div class="t"><span class="b ${i.sev}">${i.sev === 'err' ? 'error' : i.sev === 'warn' ? 'warning' : 'info'}</span>
+      <span class="cat">${CAT_LABEL[i.cat] || i.cat}</span><span>${esc(i.title)}</span></div>
+      <div class="where">${esc(i.where || '')}</div>${i.detail ? `<div class="d">${i.detail}</div>` : ''}${i.fix ? `<div class="fix">Fix: ${i.fix}</div>` : ''}
+      <div class="acts">${i.remap ? `<button class="btn sm primary" data-remap="${esc(i.ent.path.join('/'))}|${esc(i.macro)}|${esc(i.target)}">Fix reference → {$${esc(i.target)}}</button>` : ''}
+      ${i.macroId || i.macroFull ? `<button class="btn sm" data-goto="${esc(i.macroId || (i.tpl + '\u0001' + i.macroFull))}">Go to macro</button>` : ''}</div></div>`).join('') || '<div class="empty-state">No issues in this view.</div>';
+}
+$('#tab-issues').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (c) { S.issueFilter = c.dataset.f; renderIssues(); return; }
+  const r = e.target.closest('[data-remap]');
+  if (r) {
+    const [p, from, to] = r.dataset.remap.split('|');
+    const path = p.split('/').map(x => /^\d+$/.test(x) ? +x : x);
+    S.remaps.push({ path, from, to, label: getAt(S.raw, path).name || getAt(S.raw, path).key });
+    reindex(); renderStats(); renderSide(); renderIssues(); saveDraft(); toast(`Reference changed to {$${to}}`); return;
+  }
+  const g = e.target.closest('[data-goto]');
+  if (g) { const m = S.byId.get(g.dataset.goto); if (!m) return; Object.assign(S.filter, { tpl: m.tpl, quick: 'all', prefix: null, q: m.name }); $('#search').value = m.name; S.open.add(m.id); showTab('macros'); renderSide(); renderTable(); }
+});
+
+/* ---------- changes ---------- */
+function renderChanges() {
+  const mods = S.macros.filter(isMod);
+  let h = '';
+  if (!mods.length && !S.remaps.length) h = '<div class="empty-state">No changes yet.</div>';
+  else {
+    h = `<table class="preview"><thead><tr><th>Template</th><th>Macro / item</th><th>Field</th><th>Before</th><th>After</th><th></th></tr></thead><tbody>`;
+    for (const m of mods) for (const f of ['value', 'type', 'description']) if (m.cur[f] !== m.orig[f]) {
+      const sec = f === 'value' && m.cur.type !== 'TEXT';
+      h += `<tr><td>${esc(m.tpl)}</td><td class="v">${esc(m.name)}</td><td>${f}</td><td class="v">${sec ? '••••' : esc(m.orig[f] || '(empty)')}</td><td class="v">${sec ? '••••' : esc(m.cur[f] || '(empty)')}</td>
+        <td><button class="btn sm ghost" data-rev="${esc(m.id)}|${f}">Revert</button></td></tr>`;
+    }
+    S.remaps.forEach((r, i) => h += `<tr><td>${esc(S.raw.zabbix_export.templates[r.path[2]] ? S.raw.zabbix_export.templates[r.path[2]].template : '')}</td><td>${esc(r.label)}</td><td>macro reference</td>
+      <td class="v">{$${esc(r.from)}}</td><td class="v">{$${esc(r.to)}}</td><td><button class="btn sm ghost" data-unremap="${i}">Undo</button></td></tr>`);
+    h += '</tbody></table>';
+  }
+  $('#changesList').innerHTML = h;
+}
+$('#changesList').addEventListener('click', e => {
+  const b = e.target.closest('[data-rev]');
+  if (b) { const [id, f] = b.dataset.rev.split('|'); const m = S.byId.get(id); m.cur[f] = m.orig[f]; refresh(); return; }
+  const u = e.target.closest('[data-unremap]');
+  if (u) { S.remaps.splice(+u.dataset.unremap, 1); reindex(); refresh(); }
+});
+$('#btnRevertAll').onclick = () => { if (!confirm('Revert every change?')) return; S.macros.forEach(m => m.cur = Object.assign({}, m.orig)); S.remaps = []; reindex(); refresh(); };
+
+/* ---------- CSV ---------- */
+function parseDelimited(text) {
+  const first = text.split(/\r?\n/)[0] || '';
+  const d = first.includes('\t') ? '\t' : (first.split(';').length > first.split(',').length ? ';' : ',');
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; continue; }
+    if (c === '"' && cell === '') q = true;
+    else if (c === d) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ''));
+}
+const csvCell = v => /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+function download(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function macrosCsv(list) {
+  return '\ufefftemplate,macro,type,value,description,used_by\n' + list.map(m => [m.tpl, m.name, m.cur.type, m.cur.type === 'TEXT' ? m.cur.value : '', m.cur.description, String(m.uses)].map(csvCell).join(',')).join('\n') + '\n';
+}
+const stem = () => S.fileName.replace(/\.json$/i, '');
+$('#btnCsvAll').onclick = () => download(stem() + '_macros.csv', macrosCsv(S.macros), 'text/csv');
+$('#btnCsvEmpty').onclick = () => download(stem() + '_macros_empty.csv', macrosCsv(S.macros.filter(m => m.cur.value === '' && m.cur.type === 'TEXT')), 'text/csv');
+$('#btnCsvChanges').onclick = () => {
+  let s = '\ufefftemplate,target,field,before,after\n';
+  S.macros.filter(isMod).forEach(m => ['value', 'type', 'description'].forEach(f => { if (m.cur[f] !== m.orig[f]) { const sec = f === 'value' && m.cur.type !== 'TEXT'; s += [m.tpl, m.name, f, sec ? '****' : m.orig[f], sec ? '****' : m.cur[f]].map(csvCell).join(',') + '\n'; } }));
+  S.remaps.forEach(r => s += ['', r.label, 'macro reference', '{$' + r.from + '}', '{$' + r.to + '}'].map(csvCell).join(',') + '\n');
+  download(stem() + '_changes.csv', s, 'text/csv');
+};
+$('#btnSample').onclick = () => {
+  const empties = S.macros.filter(m => m.cur.value === '' && m.cur.type === 'TEXT').slice(0, 6);
+  $('#paste').value = 'template,macro,value\n' + empties.map(m => [m.tpl, m.name, ''].map(csvCell).join(',')).join('\n');
+};
+$('#btnCsvFile').onclick = () => $('#csvInput').click();
+$('#csvInput').onchange = async e => { const f = e.target.files[0]; if (f) { $('#paste').value = (await f.text()).replace(/^\ufeff/, ''); buildPreview(); } e.target.value = ''; };
+
+function buildPreview() {
+  const rows = parseDelimited($('#paste').value.replace(/^\ufeff/, ''));
+  const box = $('#preview'); S.preview = null; $('#btnApply').disabled = true;
+  if (rows.length < 2) { box.innerHTML = '<p class="hint">Need a header row and at least one data row.</p>'; $('#previewSummary').textContent = ''; return; }
+  const hdr = rows[0].map(h => h.trim().toLowerCase());
+  const col = n => hdr.indexOf(n);
+  const ci = { tpl: col('template'), macro: col('macro'), value: col('value'), desc: col('description'), type: col('type') };
+  if (ci.macro < 0 || (ci.value < 0 && ci.desc < 0 && ci.type < 0)) { box.innerHTML = '<p class="hint" style="color:var(--err)">The header needs a <code>macro</code> column plus <code>value</code>, <code>description</code> or <code>type</code>.</p>'; return; }
+  const skipEmpty = $('#optSkipEmpty').checked, onlyEmpty = $('#optOnlyEmpty').checked;
+  const plan = [], res = [];
+  rows.slice(1).forEach((r, ri) => {
+    const get = i => (i >= 0 && r[i] !== undefined ? r[i] : null);
+    let name = (get(ci.macro) || '').trim();
+    if (!name) return;
+    if (!/^\{\$/.test(name)) name = '{$' + name.replace(/^\$/, '') + '}';
+    const tpl = (get(ci.tpl) || '').trim();
+    const targets = S.macros.filter(m => m.name === name && (!tpl || m.tpl === tpl || (S.raw.zabbix_export.templates[m.ti].name === tpl)));
+    const line = ri + 2;
+    if (!targets.length) {
+      const near = suggest(name.slice(2, -1).split(':')[0], new Set(S.macros.map(m => m.base)));
+      res.push({ line, name, tpl, status: 'rejected', note: `Macro does not exist${tpl ? ' in ' + tpl : ''}. Names can't be created or renamed.${near ? ' Did you mean {$' + near.name + '}?' : ''}` }); return;
+    }
+    let typ = get(ci.type); if (typ !== null) { typ = typ.trim().toUpperCase().replace(/^SECRET$/, 'SECRET_TEXT'); if (typ === '') typ = null; else if (!TYPES.includes(typ)) { res.push({ line, name, tpl, status: 'rejected', note: `Unknown type “${typ}”` }); return; } }
+    for (const m of targets) {
+      const ch = {};
+      const v = get(ci.value), d = get(ci.desc);
+      if (v !== null && !(skipEmpty && v === '') && !(onlyEmpty && m.cur.value !== '')) ch.value = v;
+      if (d !== null && !(skipEmpty && d === '')) ch.description = d;
+      if (typ) ch.type = typ;
+      const diff = Object.keys(ch).filter(k => ch[k] !== m.cur[k]);
+      res.push({ line, name, tpl: m.tpl, status: diff.length ? 'update' : 'same', before: m.cur.value, after: 'value' in ch ? ch.value : m.cur.value, fields: diff, sec: (ch.type || m.cur.type) !== 'TEXT' });
+      if (diff.length) plan.push({ m, ch });
+    }
+  });
+  const cnt = s => res.filter(r => r.status === s).length;
+  $('#previewSummary').textContent = `${cnt('update')} to update · ${cnt('same')} unchanged · ${cnt('rejected')} rejected`;
+  box.innerHTML = `<table class="preview"><thead><tr><th>#</th><th>Status</th><th>Macro</th><th>Template</th><th>Current</th><th>New</th></tr></thead><tbody>` +
+    res.map(r => `<tr><td>${r.line}</td><td><span class="b ${r.status === 'update' ? 'mod' : r.status === 'same' ? 'ok' : 'err'}">${r.status}</span></td>
+      <td class="v">${esc(r.name)}</td><td>${esc(r.tpl || '(all)')}</td>
+      ${r.status === 'rejected' ? `<td colspan="2" style="color:var(--err)">${esc(r.note)}</td>` : `<td class="v">${r.sec ? '••••' : esc(r.before || '(empty)')}</td><td class="v">${r.sec ? '••••' : esc(r.after || '(empty)')}${r.fields.length ? ' <span class="hint">(' + r.fields.join(', ') + ')</span>' : ''}</td>`}</tr>`).join('') + '</tbody></table>';
+  S.preview = plan; $('#btnApply').disabled = !plan.length;
+}
+$('#btnPreview').onclick = buildPreview;
+$('#optSkipEmpty').onchange = () => S.preview && buildPreview();
+$('#optOnlyEmpty').onchange = () => S.preview && buildPreview();
+$('#btnApply').onclick = () => {
+  if (!S.preview) return;
+  S.preview.forEach(({ m, ch }) => Object.assign(m.cur, ch));
+  const n = S.preview.length; S.preview = null; $('#btnApply').disabled = true;
+  refresh(); buildPreview(); toast(`Applied ${n} change(s)`);
+};
+
+/* ---------- export ---------- */
+function exportJson() {
+  const errs = allIssues().filter(i => i.sev === 'err' && i.cat === 'macro-value');
+  if (errs.length && !confirm(`${errs.length} macro value error(s) remain (e.g. ${errs[0].title}).\n\nDownload anyway?`)) return;
+  const doc = buildExport(S.raw, S.macros, S.remaps);
+  download(stem() + '_updated.json', JSON.stringify(doc, null, 4), 'application/json');
+  toast('Downloaded. Import it in Zabbix: Data collection → Templates → Import, with “Update existing” on.');
+}
+$('#btnExport').onclick = exportJson; $('#btnExport2').onclick = exportJson;
+
+/* ---------- boot ---------- */
+function refresh() { renderStats(); renderSide(); renderTable(); if (S.tab === 'issues') renderIssues(); if (S.tab === 'changes') renderChanges(); saveDraft(); }
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+const openFile = () => $('#fileInput').click();
+$('#btnOpen').onclick = openFile; $('#btnOpen2').onclick = openFile;
+$('#fileInput').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (S.raw && (S.macros.some(isMod) || S.remaps.length) && !confirm('Opening a new file discards your changes in this view (drafts stay saved per file). Continue?')) return;
+  loadText(await f.text(), f.name);
+};
+const dz = $('#dropZone');
+['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); if (ev === 'drop' || e.target === dz) dz.classList.remove('over'); }));
+document.addEventListener('drop', async e => { const f = e.dataTransfer.files[0]; if (f) loadText(await f.text(), f.name); });
+$('#btnTheme').onclick = () => {
+  const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark'; try { localStorage.setItem('zmm:theme', r.dataset.theme); } catch (e) {}
+};
+try { const t = localStorage.getItem('zmm:theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+window.addEventListener('beforeunload', e => { if (S.raw && (S.macros.some(isMod) || S.remaps.length)) { e.preventDefault(); e.returnValue = ''; } });
+</script>
+</body>
+</html>

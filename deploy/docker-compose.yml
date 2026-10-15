@@ -1,0 +1,26 @@
+services:
+  zabbix-host-manager:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: zabbix-host-manager:latest
+    container_name: zabbix-host-manager
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8090}:8080"
+      - "${HTTPS_PORT:-8443}:8443"
+    environment:
+      ZABBIX_URL: ${ZABBIX_URL:-}
+      ENABLE_TLS: ${ENABLE_TLS:-true}
+      PUBLIC_HTTPS_PORT: ${HTTPS_PORT:-8443}
+      ALLOW_CIDRS: ${ALLOW_CIDRS:-}
+      TLS_CN: ${TLS_CN:-zabbix-host-manager}
+    volumes:
+      - certs:/etc/nginx/certs   # keeps the generated certificate across rebuilds; or bind-mount your own tls.crt / tls.key
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  certs:
