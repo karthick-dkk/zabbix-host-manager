@@ -42,7 +42,7 @@ class DiagramGenerate extends Base {
 				$this->json(['error' => _('This diagram does not exist or you have no access to it.')]);
 				return;
 			}
-			$xml = (string) DiagramStore::xml($meta['id']);
+			$xml = $this->viewableXml($meta)['xml'];
 		}
 		if ($xml !== '') {
 			[$out, $added, $removed] = $gen->update($xml, $model, $this->getInput('layout'));

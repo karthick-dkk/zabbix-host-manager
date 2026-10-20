@@ -90,6 +90,23 @@ abstract class Base extends CController {
 			|| ($cost['visible_to'] === 'superadmins' && $this->isSuperAdmin());
 	}
 
+	/**
+	 * A stored diagram as this user may see it: hosts they cannot read in Zabbix are redacted, and
+	 * only readable host ids are listed. Every action that sends diagram XML to the browser uses this.
+	 * @return array{xml: string, hostids: string[]}
+	 */
+	protected function viewableXml(array $meta): array {
+		$xml = (string) \Modules\HostFlow\Lib\DiagramStore::xml($meta['id']);
+		$linked = array_map('strval', $meta['hostids'] ?? []);
+		if (!$linked || $this->isSuperAdmin()) {
+			return ['xml' => $xml, 'hostids' => $linked];
+		}
+		// The diagram may have been drawn by someone who sees more hosts than this user.
+		$visible = array_map('strval', array_column(\API::Host()->get(['output' => ['hostid'], 'hostids' => $linked]), 'hostid'));
+
+		return ['xml' => \Modules\HostFlow\Lib\DrawioXml::redactHosts($xml, $visible), 'hostids' => array_values(array_intersect($linked, $visible))];
+	}
+
 	/** Diagram access lists: empty means everyone with module access. */
 	protected function canOpen(array $meta): bool {
 		if ($this->isSuperAdmin() || empty($meta['acl'])) {

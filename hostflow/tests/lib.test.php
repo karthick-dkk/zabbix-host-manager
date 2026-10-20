@@ -209,6 +209,8 @@ ok(stripos($ph, 'onerror') === false && stripos($ph, 'onload') === false && stri
 $rx = DrawioXml::redactHosts('<mxfile><diagram id="p"><mxGraphModel><root><mxCell id="0"/><object id="a" label="secret-db 10.9.9.9" zbx_hostid="5" name="secret-db" ip="10.9.9.9" zbx_note="root pw"><mxCell vertex="1" parent="0"/></object><object id="b" label="%name%" zbx_hostid="6" name="web" ip="10.0.0.6"><mxCell vertex="1" parent="0"/></object></root></mxGraphModel></diagram></mxfile>', ['6']);
 ok(strpos($rx, 'secret-db') === false && strpos($rx, '10.9.9.9') === false && strpos($rx, 'root pw') === false && strpos($rx, 'no access') !== false, 'hosts the viewer cannot read are redacted');
 ok(strpos($rx, 'name="web"') !== false && strpos($rx, '10.0.0.6') !== false, 'hosts the viewer can read are kept');
+$rx2 = DrawioXml::redactHosts('<mxfile><diagram id="p"><mxGraphModel><root><mxCell id="0"/><object id="a" label="x" zbx_hostid="5" link="https://db.internal/secret" zbx_runbook="https://wiki/secret" owner="alice" custom_ip="10.9.9.9"><mxCell vertex="1" parent="0"/></object></root></mxGraphModel></diagram></mxfile>', []);
+ok(strpos($rx2, 'secret') === false && strpos($rx2, 'alice') === false && strpos($rx2, '10.9.9.9') === false && strpos($rx2, 'zbx_hostid="5"') !== false, 'redaction keeps only id, host id and tier on hidden hosts');
 $evil = $m;
 $evil['client']['name'] = '<img src=x onerror=alert(3)>';
 $ex = DrawioXml::sanitize((new Generator($cfg))->build($evil, 'hierarchy'));

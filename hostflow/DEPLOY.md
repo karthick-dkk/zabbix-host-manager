@@ -25,10 +25,10 @@ What the installer does:
 |---|---|
 | `install.sh --upgrade` | install the latest release if it is newer than the installed one |
 | `install.sh` | install the latest release (also on a new server) |
-| `install.sh --version 1.4.1` | install that release |
+| `install.sh --version 1.4.2` | install that release |
 | `install.sh --check` | show installed and latest versions |
 | `install.sh --rollback` | put the module back as it was before the last install |
-| `install.sh --file hostflow-1.4.1.tar.gz` | offline install from a package (below) |
+| `install.sh --file hostflow-1.4.2.tar.gz` | offline install from a package (below) |
 | `install.sh --uninstall` | remove the module folders (data is kept) |
 | `--enable http://localhost/zabbix` | also register and enable the modules through the API; set `HOSTFLOW_API_TOKEN` to a Super admin API token |
 | `--zabbix-dir`, `--data-dir`, `--web-user`, `--no-backup`, `--keep N`, `--force` | override what the installer finds, or reinstall |
@@ -47,8 +47,8 @@ On a first install without `--enable`, finish in Zabbix: **Administration → Ge
 Build it on a machine with internet (`hostflow/tools/package.sh` writes `dist/hostflow-X.Y.Z.tar.gz` and its `.sha256`), copy it to the server, then:
 
 ```bash
-tar -xzf hostflow-1.4.1.tar.gz && cd hostflow-1.4.0
-sudo ./install.sh --file ../hostflow-1.4.1.tar.gz
+tar -xzf hostflow-1.4.2.tar.gz && cd hostflow-1.4.0
+sudo ./install.sh --file ../hostflow-1.4.2.tar.gz
 ```
 
 Or copy the folders by hand as below.
@@ -83,7 +83,7 @@ ZBX=/usr/share/zabbix                       # adjust if different
 ## 2. Copy the module
 
 ```bash
-tar -xzf hostflow-1.4.1.tar.gz
+tar -xzf hostflow-1.4.2.tar.gz
 sudo cp -R modules/hostflow modules/hostflow_widget "$ZBX/modules/"
 sudo chmod -R a+rX "$ZBX/modules/hostflow" "$ZBX/modules/hostflow_widget"
 ```

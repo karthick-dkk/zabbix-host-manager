@@ -75,22 +75,21 @@ class DrawioXml {
 	public static function redactHosts(string $xml, array $visible): string {
 		$doc = self::load($xml);
 		$visible = array_flip(array_map('strval', $visible));
+		// Only these survive on a hidden host's shape; everything else (names, IPs, notes, links,
+		// runbooks, custom fields) is dropped, and the label shows "no access".
+		$keep = ['id' => true, 'zbx_hostid' => true, 'zbx_kind' => true, 'zbx_component' => true];
 		$changed = false;
 		foreach ((new DOMXPath($doc))->query('//object[@zbx_hostid]|//UserObject[@zbx_hostid]') as $o) {
 			/** @var DOMElement $o */
 			if (isset($visible[$o->getAttribute('zbx_hostid')])) {
 				continue;
 			}
-			foreach (['name' => 'no access', 'ip' => '', 'cost' => '', 'zbx_note' => null, 'tooltip' => null] as $k => $v) {
-				if ($v === null) {
-					$o->removeAttribute($k);
-				}
-				else {
-					$o->setAttribute($k, $v);
+			foreach (iterator_to_array($o->attributes) as $a) {
+				if (!isset($keep[$a->nodeName])) {
+					$o->removeAttribute($a->nodeName);
 				}
 			}
-			$o->setAttribute('label', '%name%');
-			$o->setAttribute('placeholders', '1');
+			$o->setAttribute('label', 'no access');
 			$changed = true;
 		}
 
