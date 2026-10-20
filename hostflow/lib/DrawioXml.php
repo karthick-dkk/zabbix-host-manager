@@ -73,6 +73,7 @@ class DrawioXml {
 	 * position when it has none.
 	 */
 	private static function pages(DOMDocument $doc): array {
+		self::normalisePages($doc);
 		$out = [];
 		foreach ((new DOMXPath($doc))->query('//mxGraphModel/root') as $i => $root) {
 			$page = $root->parentNode->parentNode;
@@ -106,6 +107,59 @@ class DrawioXml {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * One drawing per page, one page per id, every page with an id: a later page with an id already
+	 * used, a second <mxGraphModel> or <root> in a page, and any <mxGraphModel> outside a page are
+	 * removed; a page without an id gets one. So pages always match by id between saves.
+	 */
+	private static function normalisePages(DOMDocument $doc): void {
+		$top = $doc->documentElement;
+		if ($top === null || $top->nodeName !== 'mxfile') {
+			return;
+		}
+		$xp = new DOMXPath($doc);
+		$seen = [];
+		$n = 0;
+		foreach (iterator_to_array($xp->query('//diagram')) as $page) {
+			/** @var DOMElement $page */
+			if ($page->parentNode !== $top) {
+				$page->parentNode->removeChild($page);
+				continue;
+			}
+			$id = $page->getAttribute('id');
+			if ($id === '') {
+				do {
+					$id = 'page-'.(++$n);
+				} while ($xp->query('//diagram[@id="'.$id.'"]')->length > 0);
+				$page->setAttribute('id', $id);
+			}
+			if (isset($seen[$id])) {
+				$top->removeChild($page);
+				continue;
+			}
+			$seen[$id] = true;
+			$models = 0;
+			foreach (iterator_to_array($page->childNodes) as $c) {
+				if ($c instanceof DOMElement && ($c->nodeName !== 'mxGraphModel' || ++$models > 1)) {
+					$page->removeChild($c);
+				}
+			}
+		}
+		foreach (iterator_to_array($xp->query('//mxGraphModel')) as $m) {
+			/** @var DOMElement $m */
+			if (!$m->parentNode instanceof DOMElement || $m->parentNode->nodeName !== 'diagram') {
+				$m->parentNode->removeChild($m);
+				continue;
+			}
+			$roots = 0;
+			foreach (iterator_to_array($m->childNodes) as $c) {
+				if ($c instanceof DOMElement && ($c->nodeName !== 'root' || ++$roots > 1)) {
+					$m->removeChild($c);
+				}
+			}
+		}
 	}
 
 	/** Remove duplicate and id-less cells on every page (see cells()). */
@@ -185,10 +239,35 @@ class DrawioXml {
 			return $doc->saveXML($doc->documentElement);
 		}
 		$keep = ['id' => true, 'zbx_hostid' => true, 'zbx_kind' => true, 'zbx_component' => true];
+		$cellKeep = ['id' => true, 'parent' => true, 'source' => true, 'target' => true, 'edge' => true, 'vertex' => true,
+			'style' => true, 'connectable' => true, 'collapsed' => true, 'visible' => true, 'value' => true,
+			'zbx_hostid' => true, 'zbx_kind' => true, 'zbx_component' => true];
+		$geoKeep = ['x' => true, 'y' => true, 'width' => true, 'height' => true, 'relative' => true, 'as' => true];
+		// Keep only structure: listed attributes, and child elements of the listed kinds (no text).
+		$strip = static function (DOMElement $el, array $attrs, array $kids) use (&$strip, $geoKeep): void {
+			foreach (iterator_to_array($el->attributes) as $a) {
+				if (!isset($attrs[$a->nodeName])) {
+					$el->removeAttribute($a->nodeName);
+				}
+			}
+			foreach (iterator_to_array($el->childNodes) as $c) {
+				if (!$c instanceof DOMElement || !isset($kids[$c->nodeName])) {
+					$el->removeChild($c);
+				}
+				else {
+					$strip($c, $geoKeep, ['mxPoint' => true, 'Array' => true]);
+				}
+			}
+		};
 		foreach (array_merge(...array_values(array_map('array_values', $set))) as $el) {
-			$cell = $el->nodeName === 'mxCell' ? $el : $el->getElementsByTagName('mxCell')->item(0);
+			$cell = self::mxCell($el);
 			$isEdge = $cell instanceof DOMElement && $cell->getAttribute('edge') === '1';
-			if ($el->nodeName !== 'mxCell') {
+			if ($el !== $cell) {
+				foreach (iterator_to_array($el->childNodes) as $c) {
+					if ($c !== $cell) {
+						$el->removeChild($c);
+					}
+				}
 				foreach (iterator_to_array($el->attributes) as $a) {
 					if (!isset($keep[$a->nodeName])) {
 						$el->removeAttribute($a->nodeName);
@@ -196,11 +275,10 @@ class DrawioXml {
 				}
 				$el->setAttribute('label', $isEdge || $el->getAttribute('zbx_hostid') === '' ? '' : 'no access');
 			}
-			foreach ($el->nodeName === 'mxCell' ? [$el] : iterator_to_array($el->getElementsByTagName('mxCell')) as $c) {
-				$c->removeAttribute('tooltip');
-				$c->removeAttribute('link');
-				if ($c->hasAttribute('value')) {
-					$c->setAttribute('value', $c->getAttribute('zbx_hostid') !== '' && !$isEdge ? 'no access' : '');
+			if ($cell instanceof DOMElement) {
+				$strip($cell, $cellKeep, ['mxGeometry' => true]);
+				if ($cell->hasAttribute('value') || $el === $cell) {
+					$cell->setAttribute('value', $el === $cell && $cell->getAttribute('zbx_hostid') !== '' && !$isEdge ? 'no access' : '');
 				}
 			}
 		}

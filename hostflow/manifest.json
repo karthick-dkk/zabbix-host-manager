@@ -3,7 +3,7 @@
 	"id": "hostflow",
 	"name": "Host Flow",
 	"namespace": "HostFlow",
-	"version": "1.4.5",
+	"version": "1.4.6",
 	"author": "karthick-dkk",
 	"description": "Editable draw.io diagrams inside Zabbix with live host IPs, problems and AWS cost.",
 	"actions": {

@@ -275,6 +275,18 @@ ok(strpos(DrawioXml::dropHostLinks($forge, []), 'zbx_hostid') === false, 'stored
 $gone = DrawioXml::restoreHidden('<mxfile>'.$pg('other', '').'</mxfile>', $deep, []);
 ok(strpos($gone, 'secret-host') !== false && strpos($gone, 'label-on-hidden-line') !== false, 'a deleted page with hidden hosts is put back');
 
+// pages with the same id, extra drawings, extra data on hidden cells
+$dp = '<mxfile>'.$pg('p', '<mxCell id="v" value="first-page" vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell>').$pg('p', $h5).'</mxfile>';
+ok(strpos(DrawioXml::redactHosts($dp, []), 'secret-host') === false, 'a later page with a used id is removed');
+$nm = '<mxfile><diagram id="p"><mxGraphModel><root><mxCell id="0"/></root><root>'.$h5.'</root></mxGraphModel><mxGraphModel><root>'.$h5.'</root></mxGraphModel></diagram></mxfile>';
+ok(strpos(DrawioXml::redactHosts($nm, []), 'secret-host') === false, 'only one drawing per page is kept');
+$noid = '<mxfile><diagram><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>'.$h5.'</root></mxGraphModel></diagram></mxfile>';
+ok(strpos(DrawioXml::sanitize($noid), '<diagram id="page-1"') !== false, 'pages without an id get one');
+$extra = '<mxfile>'.$pg('p', '<mxCell id="c" value="x" note="hidden-attr" vertex="1" parent="1" zbx_hostid="5"><mxGeometry as="geometry" alt="geo-leak"><mxPoint as="sourcePoint" x="1" t="pt-leak"/></mxGeometry><Object as="data" v="obj-leak"/>text-leak</mxCell>'
+	.'<object id="o" zbx_hostid="5"><mxCell vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell><mxCell id="o2" value="second-cell-leak"/></object>').'</mxfile>';
+$re = DrawioXml::redactHosts($extra, []);
+ok(!preg_match('/hidden-attr|geo-leak|pt-leak|obj-leak|text-leak|second-cell-leak/', $re) && strpos($re, 'x="1"') !== false, 'hidden cells keep structure only');
+
 // --- capacity from agent item keys
 $lin = \Modules\HostFlow\Lib\Capacity::fromKeys(['system.cpu.num' => 8, 'system.cpu.util' => 23.456, 'vm.memory.size[total]' => 16 * 2 ** 30,
 	'vm.memory.utilization' => 61.2, 'vfs.fs.dependent.size[/,total]' => 100 * 2 ** 30, 'vfs.fs.dependent.size[/,pused]' => 50,
