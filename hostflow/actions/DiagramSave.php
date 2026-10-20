@@ -60,6 +60,10 @@ class DiagramSave extends Base {
 			if (!$this->isSuperAdmin()) {
 				// This person saw hosts they may not read as "no access": keep those as stored.
 				$old = (string) DiagramStore::xml($id);
+				$xml = DrawioXml::sanitize($xml);
+				// New links only to hosts this person may read (already stored ones are kept below).
+				$xml = DrawioXml::dropHostLinks($xml, array_merge(
+					$this->readableHosts(DrawioXml::linkedHostIds($xml)), $old !== '' ? DrawioXml::linkedHostIds($old) : []));
 				if ($old !== '') {
 					$xml = DrawioXml::restoreHidden(DrawioXml::sanitize($xml), $old,
 						$this->readableHosts(array_merge($existing['hostids'] ?? [], DrawioXml::linkedHostIds($old))));

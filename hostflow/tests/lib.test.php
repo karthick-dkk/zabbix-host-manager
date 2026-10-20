@@ -234,6 +234,21 @@ ok(strpos(DrawioXml::restoreHidden($deleted, $two, ['6']), 'secret-db') !== fals
 [$updXml, , $updRemoved] = (new Generator($cfg))->update($xml, ['client' => ['name' => 'ACME'], 'cluster' => [], 'hosts' => [], 'proxies' => [], 'cost_only' => []], 'dataflow', ['10101', '10102', '11', '12', '21', '31', '41', '1']);
 ok($updRemoved === [], 'Update from Zabbix never marks hosts the user cannot see as removed');
 
+// cells nested in a hidden host, and host ids on plain cells
+$nest = '<mxfile><diagram id="p"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>'
+	.'<object id="h" label="x" zbx_hostid="5"><mxCell vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell></object>'
+	.'<mxCell id="c1" value="db password inside" vertex="1" parent="h"><mxGeometry as="geometry"/></mxCell>'
+	.'<object id="c2" label="nested note"><mxCell vertex="1" parent="c1"><mxGeometry as="geometry"/></mxCell></object>'
+	.'<mxCell id="p1" value="plain-cell-host" zbx_hostid="7" vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell>'
+	.'</root></mxGraphModel></diagram></mxfile>';
+$rn = DrawioXml::redactHosts($nest, []);
+ok(strpos($rn, 'password') === false && strpos($rn, 'nested note') === false && strpos($rn, 'plain-cell-host') === false, 'cells nested in hidden hosts, and plain cells with a host id, are redacted');
+ok(strpos(DrawioXml::restoreHidden($rn, $nest, []), 'nested note') !== false, 'and restored on save');
+
+$forged = DrawioXml::dropHostLinks($nest, ['5']);
+ok(strpos($forged, 'zbx_hostid="7"') === false && strpos($forged, 'zbx_hostid="5"') !== false, 'links to hosts the saver may not read are dropped');
+ok(DrawioXml::linkedHostIds($nest) === ['5', '7'], 'linked host ids include plain cells');
+
 // --- capacity from agent item keys
 $lin = \Modules\HostFlow\Lib\Capacity::fromKeys(['system.cpu.num' => 8, 'system.cpu.util' => 23.456, 'vm.memory.size[total]' => 16 * 2 ** 30,
 	'vm.memory.utilization' => 61.2, 'vfs.fs.dependent.size[/,total]' => 100 * 2 ** 30, 'vfs.fs.dependent.size[/,pused]' => 50,
