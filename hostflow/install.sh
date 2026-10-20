@@ -35,6 +35,10 @@ BACKUPS=/var/backups/hostflow
 action=install; version=""; file=""; local_src=""; force=0; backup=1; keep=5; enable_url=""
 zbx=""; data="/var/lib/zabbix-hostflow"; web_user=""
 
+# How to run this again, for the hints we print: the file, or the one-liner when piped from curl.
+if [ -f "${BASH_SOURCE[0]:-}" ]; then SELF="sudo bash ${BASH_SOURCE[0]}"
+else SELF="curl -fsSL https://raw.githubusercontent.com/$REPO/main/hostflow/install.sh | sudo bash -s --"; fi
+
 say() { printf '%s\n' "$*"; }
 step() { printf '→ %s\n' "$*"; }
 die() { printf '✗ %s\n' "$*" >&2; exit 1; }
@@ -107,7 +111,7 @@ do_check() {
 	latest="$(latest_version || true)"
 	say "Latest release  : ${latest:-unknown (no internet or no release yet)}"
 	if [ -n "$cur" ] && [ -n "$latest" ] && newer "$latest" "$cur"; then
-		say "Upgrade with    : sudo $0 --upgrade"
+		say "Upgrade with    : $SELF --upgrade"
 	fi
 }
 
@@ -292,7 +296,7 @@ do_install() {
 		say "  Next: Zabbix → Administration → General → Modules → Scan directory, then enable Host Flow and the Host Flow widget."
 	fi
 	say "  Open Monitoring → Host Flow. Diagrams and settings in $data were kept."
-	[ "$backup" = 1 ] && [ -n "$cur" ] && say "  Undo: sudo $0 --rollback"
+	[ "$backup" = 1 ] && [ -n "$cur" ] && say "  Undo: $SELF --rollback"
 	return 0
 }
 
