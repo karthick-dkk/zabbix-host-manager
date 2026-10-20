@@ -2,7 +2,7 @@
 
 namespace Modules\HostFlow\Actions;
 
-use Modules\HostFlow\Lib\{Config, CostModel, DiagramStore, Generator, ZabbixModel};
+use Modules\HostFlow\Lib\{Config, CostModel, DiagramStore, DrawioXml, Generator, ZabbixModel};
 
 /** Builds (or updates) a diagram from Zabbix. Nothing is saved: the editor shows it first. */
 class DiagramGenerate extends Base {
@@ -45,7 +45,10 @@ class DiagramGenerate extends Base {
 			$xml = $this->viewableXml($meta)['xml'];
 		}
 		if ($xml !== '') {
-			[$out, $added, $removed] = $gen->update($xml, $model, $this->getInput('layout'));
+			// Hosts this user may not see stay exactly as they are; they are never marked removed.
+			$linked = DrawioXml::linkedHostIds(DrawioXml::sanitize($xml));
+			$hidden = array_values(array_diff($linked, $this->readableHosts($linked)));
+			[$out, $added, $removed] = $gen->update($xml, $model, $this->getInput('layout'), $hidden);
 			$this->json(['xml' => $out, 'added' => $added, 'removed' => $removed, 'mode' => 'update']);
 			return;
 		}

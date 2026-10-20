@@ -77,7 +77,8 @@ class Generator {
 	 * with a dashed outline (never delete), keep everything drawn by hand.
 	 * Returns [xml, added hostids, removed hostids].
 	 */
-	public function update(string $xml, array $model, string $layout): array {
+	/** @param string[] $untouchable hosts the caller may not see: kept as they are, never marked removed */
+	public function update(string $xml, array $model, string $layout, array $untouchable = []): array {
 		$xml = DrawioXml::sanitize($xml);
 		$model = $this->filter($model);
 		$this->doc = DrawioXml::load($xml);
@@ -129,8 +130,9 @@ class Generator {
 		}
 
 		$removed = [];
+		$untouchable = array_flip(array_map('strval', $untouchable));
 		foreach ($present as $hid => $objs) {
-			if (!isset($want[$hid])) {
+			if (!isset($want[$hid]) && !isset($untouchable[(string) $hid])) {
 				foreach ($objs as $o) {
 					if ($o->getAttribute('zbx_removed') !== '1') {
 						$o->setAttribute('zbx_removed', '1');

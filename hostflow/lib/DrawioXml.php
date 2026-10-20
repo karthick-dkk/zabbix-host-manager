@@ -79,6 +79,7 @@ class DrawioXml {
 		// runbooks, custom fields) is dropped, and the label shows "no access".
 		$keep = ['id' => true, 'zbx_hostid' => true, 'zbx_kind' => true, 'zbx_component' => true];
 		$changed = false;
+		$hiddenIds = [];
 		foreach ((new DOMXPath($doc))->query('//object[@zbx_hostid]|//UserObject[@zbx_hostid]') as $o) {
 			/** @var DOMElement $o */
 			if (isset($visible[$o->getAttribute('zbx_hostid')])) {
@@ -90,10 +91,90 @@ class DrawioXml {
 				}
 			}
 			$o->setAttribute('label', 'no access');
+			foreach ($o->getElementsByTagName('mxCell') as $cell) {
+				$cell->removeAttribute('value');
+				$cell->removeAttribute('tooltip');
+			}
+			$hiddenIds[$o->getAttribute('id')] = true;
 			$changed = true;
+		}
+		// Lines to or from a hidden host lose their labels too (they may name it or its data).
+		if (!empty($hiddenIds)) {
+			foreach ((new DOMXPath($doc))->query('//mxCell[@edge="1"]') as $cell) {
+				/** @var DOMElement $cell */
+				if (!isset($hiddenIds[$cell->getAttribute('source')]) && !isset($hiddenIds[$cell->getAttribute('target')])) {
+					continue;
+				}
+				$cell->removeAttribute('value');
+				$wrap = $cell->parentNode;
+				if ($wrap instanceof DOMElement && ($wrap->nodeName === 'object' || $wrap->nodeName === 'UserObject')) {
+					foreach (iterator_to_array($wrap->attributes) as $a) {
+						if (!in_array($a->nodeName, ['id', 'zbx_kind'], true)) {
+							$wrap->removeAttribute($a->nodeName);
+						}
+					}
+					$wrap->setAttribute('label', '');
+				}
+			}
 		}
 
 		return $changed ? $doc->saveXML($doc->documentElement) : $xml;
+	}
+
+	/**
+	 * Saving a diagram whose hidden hosts were redacted for the person saving it: put those hosts'
+	 * shapes, and the lines to and from them, back exactly as stored, so a save by someone who sees
+	 * fewer hosts never changes or loses them.
+	 * @param string[] $visible host ids the person saving may read
+	 */
+	public static function restoreHidden(string $new, string $old, array $visible): string {
+		$visible = array_flip(array_map('strval', $visible));
+		$nd = self::load($new);
+		$od = self::load($old);
+		$oxp = new DOMXPath($od);
+		$nxp = new DOMXPath($nd);
+		$byId = static function (DOMXPath $xp, string $id): ?DOMElement {
+			$n = $xp->query('//*[@id="'.str_replace('"', '', $id).'"]')->item(0);
+			return $n instanceof DOMElement ? $n : null;
+		};
+		$hidden = [];
+		foreach ($oxp->query('//object[@zbx_hostid]|//UserObject[@zbx_hostid]') as $o) {
+			if (!isset($visible[$o->getAttribute('zbx_hostid')])) {
+				$hidden[] = $o->getAttribute('id');
+			}
+		}
+		if (!$hidden) {
+			return $new;
+		}
+		$ids = array_flip($hidden);
+		// The lines that touch them.
+		foreach ($oxp->query('//mxCell[@edge="1"]') as $cell) {
+			if (isset($ids[$cell->getAttribute('source')]) || isset($ids[$cell->getAttribute('target')])) {
+				$wrap = $cell->parentNode;
+				$hidden[] = $wrap instanceof DOMElement && ($wrap->nodeName === 'object' || $wrap->nodeName === 'UserObject')
+					? $wrap->getAttribute('id') : $cell->getAttribute('id');
+			}
+		}
+		$root = $nxp->query('//mxGraphModel/root')->item(0);
+		foreach (array_unique($hidden) as $id) {
+			$was = $byId($oxp, $id);
+			if ($was === null) {
+				continue;
+			}
+			$now = $byId($nxp, $id);
+			if ($now !== null) {
+				$now->parentNode->replaceChild($nd->importNode($was, true), $now);
+				continue;
+			}
+			// Deleted by someone who could not see it: put it back if its container still exists.
+			$cell = $was->nodeName === 'mxCell' ? $was : $was->getElementsByTagName('mxCell')->item(0);
+			$parent = $cell instanceof DOMElement ? $cell->getAttribute('parent') : '';
+			if ($root instanceof DOMElement && ($parent === '' || $byId($nxp, $parent) !== null)) {
+				$root->appendChild($nd->importNode($was, true));
+			}
+		}
+
+		return $nd->saveXML($nd->documentElement);
 	}
 
 	/** Host ids linked anywhere in the diagram (on <object>/<UserObject> wrappers). */

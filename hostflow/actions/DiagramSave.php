@@ -2,7 +2,7 @@
 
 namespace Modules\HostFlow\Actions;
 
-use Modules\HostFlow\Lib\{Config, ConflictException, DiagramStore};
+use Modules\HostFlow\Lib\{Config, ConflictException, DiagramStore, DrawioXml};
 
 class DiagramSave extends Base {
 
@@ -56,8 +56,17 @@ class DiagramSave extends Base {
 			if ($flow !== null) {
 				$fields['flow'] = $flow;
 			}
+			$xml = $this->getInput('xml');
+			if (!$this->isSuperAdmin()) {
+				// This person saw hosts they may not read as "no access": keep those as stored.
+				$old = (string) DiagramStore::xml($id);
+				if ($old !== '') {
+					$xml = DrawioXml::restoreHidden(DrawioXml::sanitize($xml), $old,
+						$this->readableHosts(array_merge($existing['hostids'] ?? [], DrawioXml::linkedHostIds($old))));
+				}
+			}
 			try {
-				$meta = DiagramStore::save($id, $this->getInput('xml'), $fields,
+				$meta = DiagramStore::save($id, $xml, $fields,
 					$this->hasInput('revision') ? (int) $this->getInput('revision') : null);
 			}
 			catch (ConflictException $e) {

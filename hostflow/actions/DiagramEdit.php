@@ -24,6 +24,9 @@ class DiagramEdit extends Base {
 				return;
 			}
 		}
+		if ($meta !== null) {
+			$meta['hostids'] = $this->readableHosts($meta['hostids'] ?? []);
+		}
 		$cfg = Config::get();
 		$r = new CControllerResponseData([
 			'meta' => $meta,

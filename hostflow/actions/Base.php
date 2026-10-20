@@ -93,18 +93,29 @@ abstract class Base extends CController {
 	/**
 	 * A stored diagram as this user may see it: hosts they cannot read in Zabbix are redacted, and
 	 * only readable host ids are listed. Every action that sends diagram XML to the browser uses this.
-	 * @return array{xml: string, hostids: string[]}
+	 * @return array{xml: string, hostids: string[], hidden: string[]}
 	 */
 	protected function viewableXml(array $meta): array {
 		$xml = (string) \Modules\HostFlow\Lib\DiagramStore::xml($meta['id']);
 		$linked = array_map('strval', $meta['hostids'] ?? []);
 		if (!$linked || $this->isSuperAdmin()) {
-			return ['xml' => $xml, 'hostids' => $linked];
+			return ['xml' => $xml, 'hostids' => $linked, 'hidden' => []];
 		}
 		// The diagram may have been drawn by someone who sees more hosts than this user.
-		$visible = array_map('strval', array_column(\API::Host()->get(['output' => ['hostid'], 'hostids' => $linked]), 'hostid'));
+		$visible = $this->readableHosts($linked);
 
-		return ['xml' => \Modules\HostFlow\Lib\DrawioXml::redactHosts($xml, $visible), 'hostids' => array_values(array_intersect($linked, $visible))];
+		return ['xml' => \Modules\HostFlow\Lib\DrawioXml::redactHosts($xml, $visible),
+			'hostids' => array_values(array_intersect($linked, $visible)), 'hidden' => array_values(array_diff($linked, $visible))];
+	}
+
+	/** The host ids of $hostids this user may read in Zabbix. */
+	protected function readableHosts(array $hostids): array {
+		$hostids = array_values(array_unique(array_map('strval', $hostids)));
+		if (!$hostids || $this->isSuperAdmin()) {
+			return $hostids;
+		}
+
+		return array_map('strval', array_column(\API::Host()->get(['output' => ['hostid'], 'hostids' => $hostids]), 'hostid'));
 	}
 
 	/** Diagram access lists: empty means everyone with module access. */

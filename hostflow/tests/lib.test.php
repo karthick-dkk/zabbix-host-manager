@@ -217,6 +217,23 @@ $ex = DrawioXml::sanitize((new Generator($cfg))->build($evil, 'hierarchy'));
 // Escaped once in the XML (&lt;img) would be a live tag in an HTML label; escaped twice (&amp;lt;img) is text.
 ok(!preg_match('/&lt;[^&]*onerror/i', $ex) && strpos($ex, '<img') === false && strpos($ex, '&amp;lt;img') !== false, 'client group name is escaped in labels; no handler survives anywhere');
 
+// --- hidden hosts: lines redacted, saves cannot change or lose them, updates never mark them removed
+$two = '<mxfile><diagram id="p"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>'
+	.'<object id="h" label="%name%" zbx_hostid="5" name="secret-db" zbx_note="pw"><mxCell vertex="1" parent="1"><mxGeometry x="10" y="10" width="10" height="10" as="geometry"/></mxCell></object>'
+	.'<object id="v" label="%name%" zbx_hostid="6" name="web"><mxCell vertex="1" parent="1"><mxGeometry x="50" y="10" width="10" height="10" as="geometry"/></mxCell></object>'
+	.'<object id="e" label="to secret-db"><mxCell edge="1" parent="1" source="v" target="h"><mxGeometry relative="1" as="geometry"/></mxCell></object>'
+	.'</root></mxGraphModel></diagram></mxfile>';
+$red = DrawioXml::redactHosts($two, ['6']);
+ok(strpos($red, 'secret-db') === false && strpos($red, 'pw') === false, 'labels of lines to a hidden host are redacted too');
+$edited = str_replace('name="web"', 'name="web-renamed"', $red);
+$back = DrawioXml::restoreHidden($edited, $two, ['6']);
+ok(strpos($back, 'secret-db') !== false && strpos($back, 'zbx_note="pw"') !== false && strpos($back, 'label="to secret-db"') !== false && strpos($back, 'web-renamed') !== false,
+	'save keeps hidden hosts and their lines as stored, and keeps the edits to visible ones');
+$deleted = preg_replace('#<object id="h".*?</object>#s', '', $red);
+ok(strpos(DrawioXml::restoreHidden($deleted, $two, ['6']), 'secret-db') !== false, 'a hidden host deleted by someone who could not see it comes back');
+[$updXml, , $updRemoved] = (new Generator($cfg))->update($xml, ['client' => ['name' => 'ACME'], 'cluster' => [], 'hosts' => [], 'proxies' => [], 'cost_only' => []], 'dataflow', ['10101', '10102', '11', '12', '21', '31', '41', '1']);
+ok($updRemoved === [], 'Update from Zabbix never marks hosts the user cannot see as removed');
+
 // --- capacity from agent item keys
 $lin = \Modules\HostFlow\Lib\Capacity::fromKeys(['system.cpu.num' => 8, 'system.cpu.util' => 23.456, 'vm.memory.size[total]' => 16 * 2 ** 30,
 	'vm.memory.utilization' => 61.2, 'vfs.fs.dependent.size[/,total]' => 100 * 2 ** 30, 'vfs.fs.dependent.size[/,pused]' => 50,
