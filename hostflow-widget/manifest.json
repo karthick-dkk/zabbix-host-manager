@@ -1,0 +1,22 @@
+{
+	"manifest_version": 2.0,
+	"id": "hostflow_widget",
+	"type": "widget",
+	"name": "Host Flow",
+	"namespace": "HostFlowWidget",
+	"version": "1.0.0",
+	"author": "karthick-dkk",
+	"description": "Shows a live Host Flow diagram on a dashboard. Needs the Host Flow module.",
+	"widget": {
+		"js_class": "CWidgetHostFlow",
+		"refresh_rate": 0
+	},
+	"actions": {
+		"widget.hostflow_widget.view": {
+			"class": "WidgetView"
+		}
+	},
+	"assets": {
+		"js": ["class.widget.js"]
+	}
+}

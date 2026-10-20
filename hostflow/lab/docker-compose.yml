@@ -1,0 +1,51 @@
+# Throwaway Zabbix 7.0 lab for developing and testing the Host Flow module.
+#   docker compose -f hostflow/lab/docker-compose.yml up -d
+#   open http://localhost:18080   (Admin / zabbix)
+# The module directory is mounted read-only; diagram data lives in the hostflow-data volume.
+name: hostflow-lab
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+    volumes: [db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zabbix -d zabbix"]
+      interval: 5s
+      retries: 30
+
+  server:
+    image: zabbix/zabbix-server-pgsql:alpine-7.0-latest
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      DB_SERVER_HOST: db
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+      ZBX_STARTPOLLERS: "2"
+      ZBX_STARTTRAPPERS: "3"
+    ports: ["10051:10051"]   # lab only: seed.py sends trapper values to raise and clear problems
+
+  web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.0-latest
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      ZBX_SERVER_HOST: server
+      DB_SERVER_HOST: db
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+      PHP_TZ: UTC
+      HOSTFLOW_DATA_DIR: /var/lib/zabbix/hostflow
+    ports: ["18080:8080"]
+    volumes:
+      - ../:/usr/share/zabbix/modules/hostflow:ro
+      - ../../hostflow-widget:/usr/share/zabbix/modules/hostflow_widget:ro
+      - hostflow-data:/var/lib/zabbix
+
+volumes:
+  db:
+  hostflow-data:

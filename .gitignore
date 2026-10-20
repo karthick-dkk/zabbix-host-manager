@@ -2,3 +2,4 @@
 deploy/.env
 deploy/certs/
 .DS_Store
+dist/

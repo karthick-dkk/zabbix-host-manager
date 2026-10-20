@@ -21,6 +21,11 @@ How a host belongs to a client: the host is in host group `<CLIENT>` plus one ro
 ### `macro-manager.html`: template macro editor (offline)
 Load a Zabbix template export (JSON) to bulk-edit macro values, types and descriptions. Macro names are locked. It finds broken macro→item mappings and wrong item value types, and exports a file that is byte-identical except for the fields you changed.
 
+### `hostflow/`: Host Flow Zabbix module (draw.io diagrams with live IPs, problems and cost)
+A Zabbix 7.0 module that adds **Monitoring → Host Flow**: the draw.io editor bundled inside Zabbix, diagrams generated from client/role host groups, a live view with IPs, availability, problems and downstream impact, time travel, NOC wall, dashboard widget (`hostflow-widget/`), trigger-dependency suggestions, Services/SLA, Zabbix map import, and optional AWS cost per host. Install with `hostflow/install.sh`; see [hostflow/README.md](hostflow/README.md).
+
+![Host Flow live view](screenshots/hostflow/04-live-dataflow-cost.png)
+
 ## Deploy
 
 ```bash
@@ -43,6 +48,9 @@ Without Docker, open `host-manager.html` in a browser, or serve the folder with 
 | `host-manager.html` | Client host manager (single file, no dependencies) |
 | `macro-manager.html` | Template macro editor (single file, no dependencies) |
 | `deploy/` | Dockerfile, compose file, one-click deploy script |
+| `hostflow/` | Host Flow Zabbix module (draw.io is downloaded by `install.sh`, not committed) |
+| `hostflow-widget/` | Host Flow dashboard widget module |
+| `docs/PLAN-host-flow-module.md` | Host Flow design plan |
 | `zbx_export_templates_ES_Elastic_http_linux.json` | Original template export (Zabbix 7.0) |
 | `zbx_export_templates_ES_Elastic_http_linux_fixed.json` | Same export with the macro→item mapping fixes applied |
 | `screenshots/` | UI screenshots (`host-manager/` uses demo data) |
