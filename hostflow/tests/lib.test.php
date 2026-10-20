@@ -203,6 +203,18 @@ $ids = DrawioXml::linkedHostIds(DrawioXml::sanitize($x)); sort($ids);
 ok($ids === ['1', '11', '12', '21', '31', '41', '51'], 'client layout: every host linked');
 ok(strpos($x, '>events<') === false && preg_match('/label="query"/', $x) === 0, 'client layout: no SIEM-only arrows (VPN, Engine)');
 
+// --- security: placeholders, redaction, escaped labels
+$ph = DrawioXml::sanitize('<mxGraphModel><root><mxCell id="0"/><object id="2" label="%name%" placeholders="1" name="&lt;img src=x onerror=alert(1)&gt;" ip="&lt;svg onload=alert(2)&gt;"><mxCell vertex="1" parent="0"><mxGeometry as="geometry"/></mxCell></object></root></mxGraphModel>');
+ok(stripos($ph, 'onerror') === false && stripos($ph, 'onload') === false && stripos($ph, '&lt;svg') === false, 'attributes used as %placeholders% are cleaned too');
+$rx = DrawioXml::redactHosts('<mxfile><diagram id="p"><mxGraphModel><root><mxCell id="0"/><object id="a" label="secret-db 10.9.9.9" zbx_hostid="5" name="secret-db" ip="10.9.9.9" zbx_note="root pw"><mxCell vertex="1" parent="0"/></object><object id="b" label="%name%" zbx_hostid="6" name="web" ip="10.0.0.6"><mxCell vertex="1" parent="0"/></object></root></mxGraphModel></diagram></mxfile>', ['6']);
+ok(strpos($rx, 'secret-db') === false && strpos($rx, '10.9.9.9') === false && strpos($rx, 'root pw') === false && strpos($rx, 'no access') !== false, 'hosts the viewer cannot read are redacted');
+ok(strpos($rx, 'name="web"') !== false && strpos($rx, '10.0.0.6') !== false, 'hosts the viewer can read are kept');
+$evil = $m;
+$evil['client']['name'] = '<img src=x onerror=alert(3)>';
+$ex = DrawioXml::sanitize((new Generator($cfg))->build($evil, 'hierarchy'));
+// Escaped once in the XML (&lt;img) would be a live tag in an HTML label; escaped twice (&amp;lt;img) is text.
+ok(!preg_match('/&lt;[^&]*onerror/i', $ex) && strpos($ex, '<img') === false && strpos($ex, '&amp;lt;img') !== false, 'client group name is escaped in labels; no handler survives anywhere');
+
 // --- capacity from agent item keys
 $lin = \Modules\HostFlow\Lib\Capacity::fromKeys(['system.cpu.num' => 8, 'system.cpu.util' => 23.456, 'vm.memory.size[total]' => 16 * 2 ** 30,
 	'vm.memory.utilization' => 61.2, 'vfs.fs.dependent.size[/,total]' => 100 * 2 ** 30, 'vfs.fs.dependent.size[/,pused]' => 50,

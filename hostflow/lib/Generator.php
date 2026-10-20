@@ -161,7 +161,7 @@ class Generator {
 				$c = $this->node('cluster', $ch['name'], 'cluster', 'store', $x0 + 10, $cy - $i * 64, 170, 52,
 					['zbx_hostid' => $ch['hostid'], 'name' => htmlspecialchars($ch['name']), 'ip' => htmlspecialchars($ch['ip'] ?? ''), 'zbx_label' => $this->opt['label']],
 					$this->opt['label']);
-				$this->edge($c, $client, $this->cfg['client']['grp_macro'].' = '.$m['client']['name'], 'dashed=1;endArrow=none;');
+				$this->edge($c, $client, htmlspecialchars($this->cfg['client']['grp_macro'].' = '.$m['client']['name']), 'dashed=1;endArrow=none;');
 			}
 		}
 

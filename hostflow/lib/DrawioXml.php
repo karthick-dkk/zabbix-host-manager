@@ -67,6 +67,36 @@ class DrawioXml {
 		return $doc->saveXML($doc->documentElement);
 	}
 
+	/**
+	 * For people who may not see some linked hosts in Zabbix: drop those hosts' stored name, IP and
+	 * label text from the XML they are sent, so a diagram never reveals hosts beyond their permissions.
+	 * @param string[] $visible host ids the viewer may read
+	 */
+	public static function redactHosts(string $xml, array $visible): string {
+		$doc = self::load($xml);
+		$visible = array_flip(array_map('strval', $visible));
+		$changed = false;
+		foreach ((new DOMXPath($doc))->query('//object[@zbx_hostid]|//UserObject[@zbx_hostid]') as $o) {
+			/** @var DOMElement $o */
+			if (isset($visible[$o->getAttribute('zbx_hostid')])) {
+				continue;
+			}
+			foreach (['name' => 'no access', 'ip' => '', 'cost' => '', 'zbx_note' => null, 'tooltip' => null] as $k => $v) {
+				if ($v === null) {
+					$o->removeAttribute($k);
+				}
+				else {
+					$o->setAttribute($k, $v);
+				}
+			}
+			$o->setAttribute('label', '%name%');
+			$o->setAttribute('placeholders', '1');
+			$changed = true;
+		}
+
+		return $changed ? $doc->saveXML($doc->documentElement) : $xml;
+	}
+
 	/** Host ids linked anywhere in the diagram (on <object>/<UserObject> wrappers). */
 	public static function linkedHostIds(string $xml): array {
 		$ids = [];
@@ -168,7 +198,11 @@ class DrawioXml {
 				$el->removeAttribute($a->nodeName);
 				continue;
 			}
-			if ($name === 'label' || $name === 'value' || $name === 'tooltip' || $name === 'zbx_note') {
+			// Labels may be HTML, and with placeholders="1" any other attribute of an object is put
+			// into the label as %name%: clean every attribute that can carry text.
+			$isObject = $el->nodeName === 'object' || $el->nodeName === 'UserObject';
+			if ($name === 'label' || $name === 'value' || $name === 'tooltip' || $name === 'zbx_note'
+					|| ($isObject && !in_array($name, ['id', 'style', 'placeholders'], true))) {
 				$clean = self::cleanHtml($value);
 				if ($clean !== $value) {
 					$el->setAttribute($a->nodeName, $clean);

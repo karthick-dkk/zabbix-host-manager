@@ -54,7 +54,7 @@ rm -f  "$tmp/x"/workbox-*.js
 find "$tmp/x" -name '*.map' -delete
 
 # Zabbix's packaged nginx denies any URL containing app/, include/, local/, locale/ or vendor/.
-blocked="$(cd "$tmp/x" && find . -type f | grep -E '/(app/|include/|local/|locale/|vendor/)|conf[^.]' || true)"
+blocked="$(cd "$tmp/x" && find . -type f | grep -E '/(app|include|local|locale|vendor|conf)/' || true)"
 if [ -n "$blocked" ]; then
   echo "! These draw.io files would be blocked by Zabbix's nginx rules:" >&2
   echo "$blocked" | head -20 >&2

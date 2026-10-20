@@ -2,7 +2,7 @@
 
 namespace Modules\HostFlow\Actions;
 
-use Modules\HostFlow\Lib\DiagramStore;
+use Modules\HostFlow\Lib\{DiagramStore, DrawioXml};
 
 class DiagramLoad extends Base {
 
@@ -18,6 +18,13 @@ class DiagramLoad extends Base {
 			$this->json(['error' => _('This diagram does not exist or you have no access to it.')]);
 			return;
 		}
-		$this->json(['meta' => $meta, 'xml' => DiagramStore::xml($meta['id']), 'can_edit' => $this->isAdmin()]);
+		$xml = (string) DiagramStore::xml($meta['id']);
+		$linked = $meta['hostids'] ?? [];
+		if ($linked && $this->getUserType() != USER_TYPE_SUPER_ADMIN) {
+			// The diagram may have been drawn by someone who sees more hosts than this user.
+			$visible = array_column(\API::Host()->get(['output' => ['hostid'], 'hostids' => $linked, 'preservekeys' => true]), 'hostid');
+			$xml = DrawioXml::redactHosts($xml, $visible);
+		}
+		$this->json(['meta' => $meta, 'xml' => $xml, 'can_edit' => $this->isAdmin()]);
 	}
 }
