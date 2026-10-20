@@ -249,6 +249,32 @@ $forged = DrawioXml::dropHostLinks($nest, ['5']);
 ok(strpos($forged, 'zbx_hostid="7"') === false && strpos($forged, 'zbx_hostid="5"') !== false, 'links to hosts the saver may not read are dropped');
 ok(DrawioXml::linkedHostIds($nest) === ['5', '7'], 'linked host ids include plain cells');
 
+// duplicate ids, labels on hidden lines, pages
+$pg = static fn(string $id, string $cells) => '<diagram id="'.$id.'"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>'.$cells.'</root></mxGraphModel></diagram>';
+$h5 = '<object id="h" label="secret-host" zbx_hostid="5"><mxCell vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell></object>';
+$dup = '<mxfile>'.$pg('p', '<object id="h" label="decoy" zbx_hostid="9"><mxCell vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell></object>'
+	.'<object id="h" label="secret-dup" zbx_hostid="5"><mxCell vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell></object>').'</mxfile>';
+ok(strpos(DrawioXml::redactHosts($dup, ['9']), 'secret-dup') === false, 'a later cell with a duplicate id is removed');
+ok(substr_count(DrawioXml::sanitize($dup), 'id="h"') === 1, 'sanitize keeps one cell per id per page');
+$two = '<mxfile>'.$pg('a', '<mxCell id="x" value="page-a-ok" vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell>')
+	.$pg('b', $h5.'<mxCell id="x" value="page-b" vertex="1" parent="h"><mxGeometry as="geometry"/></mxCell>').'</mxfile>';
+$r2 = DrawioXml::redactHosts($two, []);
+ok(strpos($r2, 'page-a-ok') !== false && strpos($r2, 'secret-host') === false, 'the same id on another page is a different cell');
+$deep = '<mxfile>'.$pg('p', $h5.'<mxCell id="v" value="vis" vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell>'
+	.'<mxCell id="e" edge="1" source="h" target="v" parent="1"><mxGeometry as="geometry"/></mxCell>'
+	.'<mxCell id="l" value="label-on-hidden-line" vertex="1" connectable="0" parent="e"><mxGeometry as="geometry"/></mxCell>'
+	.'<mxCell id="e2" edge="1" source="l" target="v" parent="1"><mxGeometry as="geometry"/></mxCell>'
+	.'<mxCell id="l2" value="second-hop" vertex="1" parent="e2"><mxGeometry as="geometry"/></mxCell>').'</mxfile>';
+$rd = DrawioXml::redactHosts($deep, []);
+ok(strpos($rd, 'label-on-hidden-line') === false && strpos($rd, 'second-hop') === false && strpos($rd, '"vis"') !== false, 'labels on hidden lines are redacted, repeatedly');
+$forge = '<mxfile>'.$pg('p', '<object id="h" label="renamed" zbx_hostid="5"><mxCell vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell></object>'
+	.'<object id="h" label="dup-forged" zbx_hostid="5"><mxCell vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell></object>').'</mxfile>';
+$rf = DrawioXml::restoreHidden(DrawioXml::sanitize($forge), $deep, []);
+ok(strpos($rf, 'secret-host') !== false && strpos($rf, 'renamed') === false && strpos($rf, 'dup-forged') === false, 'hidden cells are restored as stored, forged copies dropped');
+ok(strpos(DrawioXml::dropHostLinks($forge, []), 'zbx_hostid') === false, 'stored hidden host ids are not allowed on new links');
+$gone = DrawioXml::restoreHidden('<mxfile>'.$pg('other', '').'</mxfile>', $deep, []);
+ok(strpos($gone, 'secret-host') !== false && strpos($gone, 'label-on-hidden-line') !== false, 'a deleted page with hidden hosts is put back');
+
 // --- capacity from agent item keys
 $lin = \Modules\HostFlow\Lib\Capacity::fromKeys(['system.cpu.num' => 8, 'system.cpu.util' => 23.456, 'vm.memory.size[total]' => 16 * 2 ** 30,
 	'vm.memory.utilization' => 61.2, 'vfs.fs.dependent.size[/,total]' => 100 * 2 ** 30, 'vfs.fs.dependent.size[/,pused]' => 50,

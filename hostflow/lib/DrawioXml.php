@@ -63,64 +63,110 @@ class DrawioXml {
 		foreach (iterator_to_array($root->getElementsByTagName('*')) as $el) {
 			self::cleanElement($el);
 		}
+		self::dedupe($doc);
 
 		return $doc->saveXML($doc->documentElement);
 	}
 
 	/**
-	 * Everything that belongs to hosts a viewer may not read: the hidden host shapes (wrapped objects
-	 * or plain cells carrying zbx_hostid), every cell nested inside them at any depth, and every line
-	 * that starts or ends at any of those. Returns [element id => DOMElement] (the object wrapper when
-	 * there is one, else the mxCell).
+	 * The pages of a diagram as [page key => <root> element]. The key is the page's id, or its
+	 * position when it has none.
 	 */
-	private static function hiddenSet(DOMDocument $doc, array $visible): array {
-		$xp = new DOMXPath($doc);
-		$visible = array_flip(array_map('strval', $visible));
-		$node = static function (DOMElement $cell): DOMElement {
-			$p = $cell->parentNode;
-			return $p instanceof DOMElement && ($p->nodeName === 'object' || $p->nodeName === 'UserObject') ? $p : $cell;
-		};
-		$all = [];
-		$parentOf = [];
-		foreach ($xp->query('//mxCell') as $cell) {
-			/** @var DOMElement $cell */
-			$n = $node($cell);
-			$id = $n->getAttribute('id');
-			if ($id === '') {
+	private static function pages(DOMDocument $doc): array {
+		$out = [];
+		foreach ((new DOMXPath($doc))->query('//mxGraphModel/root') as $i => $root) {
+			$page = $root->parentNode->parentNode;
+			$key = $page instanceof DOMElement && $page->nodeName === 'diagram' && $page->getAttribute('id') !== ''
+				? 'id:'.$page->getAttribute('id') : '#'.$i;
+			if (!isset($out[$key])) {
+				$out[$key] = $root;
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * The cells of one page as [id => element], the way draw.io reads them: only the direct children
+	 * of <root>. A later cell with an id already used on the page, or a cell without an id, is
+	 * removed, so what is checked here is always what draw.io shows.
+	 */
+	private static function cells(DOMElement $root): array {
+		$out = [];
+		foreach (iterator_to_array($root->childNodes) as $n) {
+			if (!$n instanceof DOMElement) {
 				continue;
 			}
-			$all[$id] = [$n, $cell];
-			$parentOf[$id] = $cell->getAttribute('parent');
+			$id = $n->getAttribute('id');
+			if ($id === '' || isset($out[$id])) {
+				$root->removeChild($n);
+				continue;
+			}
+			$out[$id] = $n;
 		}
-		$hidden = [];
-		foreach ($all as $id => [$n, $cell]) {
-			$hid = $n->getAttribute('zbx_hostid') !== '' ? $n->getAttribute('zbx_hostid') : $cell->getAttribute('zbx_hostid');
-			if ($hid !== '' && !isset($visible[$hid])) {
-				$hidden[$id] = true;
+
+		return $out;
+	}
+
+	/** Remove duplicate and id-less cells on every page (see cells()). */
+	private static function dedupe(DOMDocument $doc): void {
+		foreach (self::pages($doc) as $root) {
+			self::cells($root);
+		}
+	}
+
+	/** The mxCell of a page cell (the cell itself, or the one inside an object wrapper). */
+	private static function mxCell(DOMElement $n): ?DOMElement {
+		if ($n->nodeName === 'mxCell') {
+			return $n;
+		}
+		foreach ($n->childNodes as $c) {
+			if ($c instanceof DOMElement && $c->nodeName === 'mxCell') {
+				return $c;
 			}
 		}
-		if (!$hidden) {
-			return [];
-		}
-		// Nested inside a hidden shape, at any depth.
-		foreach ($all as $id => $_) {
-			for ($p = $parentOf[$id] ?? '', $guard = 0; $p !== '' && $guard < 64; $p = $parentOf[$p] ?? '', $guard++) {
-				if (isset($hidden[$p])) {
+
+		return null;
+	}
+
+	/**
+	 * Everything that belongs to hosts a viewer may not read, per page: the hidden host shapes
+	 * (wrapped objects or plain cells carrying zbx_hostid), every cell nested inside them at any
+	 * depth, every line that starts or ends at any of those, and labels on those lines, repeated
+	 * until nothing more is added. Removes duplicate cells first (see cells()).
+	 * Returns [page key => [cell id => element]].
+	 */
+	private static function hiddenSet(DOMDocument $doc, array $visible): array {
+		$visible = array_flip(array_map('strval', $visible));
+		$out = [];
+		foreach (self::pages($doc) as $key => $root) {
+			$cells = self::cells($root);
+			$info = [];
+			$hidden = [];
+			foreach ($cells as $id => $n) {
+				$c = self::mxCell($n);
+				$info[$id] = $c === null ? ['', false, '', ''] : [$c->getAttribute('parent'), $c->getAttribute('edge') === '1',
+					$c->getAttribute('source'), $c->getAttribute('target')];
+				$hid = $n->getAttribute('zbx_hostid') !== '' ? $n->getAttribute('zbx_hostid') : ($c ? $c->getAttribute('zbx_hostid') : '');
+				if ($hid !== '' && !isset($visible[$hid])) {
 					$hidden[$id] = true;
-					break;
 				}
 			}
-		}
-		// Lines to or from any of them.
-		foreach ($all as $id => [, $cell]) {
-			if ($cell->getAttribute('edge') === '1'
-					&& (isset($hidden[$cell->getAttribute('source')]) || isset($hidden[$cell->getAttribute('target')]))) {
-				$hidden[$id] = true;
+			if (!$hidden) {
+				continue;
 			}
-		}
-		$out = [];
-		foreach ($hidden as $id => $_) {
-			$out[$id] = $all[$id][0];
+			do {
+				$more = false;
+				foreach ($info as $id => [$parent, $edge, $src, $dst]) {
+					if (!isset($hidden[$id]) && (isset($hidden[$parent]) || ($edge && (isset($hidden[$src]) || isset($hidden[$dst]))))) {
+						$hidden[$id] = true;
+						$more = true;
+					}
+				}
+			} while ($more);
+			foreach ($hidden as $id => $_) {
+				$out[$key][(string) $id] = $cells[$id];
+			}
 		}
 
 		return $out;
@@ -136,10 +182,10 @@ class DrawioXml {
 		$doc = self::load($xml);
 		$set = self::hiddenSet($doc, $visible);
 		if (!$set) {
-			return $xml;
+			return $doc->saveXML($doc->documentElement);
 		}
 		$keep = ['id' => true, 'zbx_hostid' => true, 'zbx_kind' => true, 'zbx_component' => true];
-		foreach ($set as $el) {
+		foreach (array_merge(...array_values(array_map('array_values', $set))) as $el) {
 			$cell = $el->nodeName === 'mxCell' ? $el : $el->getElementsByTagName('mxCell')->item(0);
 			$isEdge = $cell instanceof DOMElement && $cell->getAttribute('edge') === '1';
 			if ($el->nodeName !== 'mxCell') {
@@ -171,32 +217,36 @@ class DrawioXml {
 	public static function restoreHidden(string $new, string $old, array $visible): string {
 		$od = self::load($old);
 		$set = self::hiddenSet($od, $visible);
-		if (!$set) {
-			return $new;
-		}
 		$nd = self::load($new);
-		$nxp = new DOMXPath($nd);
-		$byId = static function (DOMXPath $xp, string $id): ?DOMElement {
-			foreach ($xp->query('//*[@id]') as $n) {
-				if ($n instanceof DOMElement && $n->getAttribute('id') === $id) {
-					return $n;
+		self::dedupe($nd);
+		$pages = self::pages($nd);
+		$file = $nd->documentElement;
+		foreach ($set as $key => $hidden) {
+			$oldRoot = self::pages($od)[$key];
+			if (!isset($pages[$key])) {
+				// A page with hosts this person cannot see was deleted: put the whole page back.
+				$page = $oldRoot->parentNode->parentNode;
+				if ($file->nodeName === 'mxfile' && $page instanceof DOMElement && $page->nodeName === 'diagram') {
+					$file->appendChild($nd->importNode($page, true));
 				}
-			}
-
-			return null;
-		};
-		$root = $nxp->query('//mxGraphModel/root')->item(0);
-		foreach ($set as $id => $was) {
-			$now = $byId($nxp, (string) $id);
-			if ($now !== null) {
-				$now->parentNode->replaceChild($nd->importNode($was, true), $now);
 				continue;
 			}
-			// Deleted by someone who could not see it: put it back if its container still exists.
-			$cell = $was->nodeName === 'mxCell' ? $was : $was->getElementsByTagName('mxCell')->item(0);
-			$parent = $cell instanceof DOMElement ? $cell->getAttribute('parent') : '';
-			if ($root instanceof DOMElement && ($parent === '' || $byId($nxp, $parent) !== null || isset($set[$parent]))) {
-				$root->appendChild($nd->importNode($was, true));
+			$root = $pages[$key];
+			$cells = self::cells($root);
+			foreach ($hidden as $id => $was) {
+				$copy = $nd->importNode($was, true);
+				if (isset($cells[$id])) {
+					$root->replaceChild($copy, $cells[$id]);
+				}
+				else {
+					// Deleted by someone who could not see it: put it back if its container still exists.
+					$c = self::mxCell($was);
+					$parent = $c ? $c->getAttribute('parent') : '';
+					if ($parent === '' || isset($cells[$parent]) || isset($hidden[$parent])) {
+						$root->appendChild($copy);
+					}
+				}
+				$cells[$id] = $copy;
 			}
 		}
 
